@@ -1,3 +1,7 @@
+// require dotenv
+require('dotenv').config();
+const discordBotToken = process.env.DISCORD_BOT_TOKEN;
+
 // Require the discord.js module
 const Discord = require('discord.js');
 
@@ -31,4 +35,4 @@ client.once('ready', () => {
 });
 
 // Login to Discord with your app's token
-client.login('VA98xILu8_I5i2D1-x5e8myUWpNeeoG6');
+client.login(process.env.DISCORD_BOT_TOKEN);
