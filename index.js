@@ -1,38 +1,47 @@
-// require dotenv
 require('dotenv').config();
-const discordBotToken = process.env.DISCORD_BOT_TOKEN;
+const fs = require('fs');
+const { Client, Collection, GatewayIntentBits } = require('discord.js');
 
-// Require the discord.js module
-const Discord = require('discord.js');
-
-//Setting Intents
-const { Client, GatewayIntentBits } = require('discord.js');
-
-// Create a new Discord client
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildPresences,
-    GatewayIntentBits.GuildMessageTyping,
-    GatewayIntentBits.MessageContent, // Be cautious with this intent due to privacy
-    // Add any other intents your bot needs
-    GatewayIntentBits.Guilds, // For managing roles, channels, and generally necessary
-    GatewayIntentBits.GuildMembers, // For managing members, roles, nicknames, etc.
-    GatewayIntentBits.GuildModeration, // For listening to ban and unban events
-    GatewayIntentBits.GuildMessages, // For sending and receiving messages in guilds
-    GatewayIntentBits.GuildMessageReactions, // For adding reactions to messages
-    GatewayIntentBits.MessageContent, // To access the content of messages
-    GatewayIntentBits.GuildWebhooks, // For managing webhooks
-    GatewayIntentBits.GuildInvites, // For managing invites
-  ],
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildPresences,
+        GatewayIntentBits.GuildMessageTyping,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildModeration,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.GuildWebhooks,
+        GatewayIntentBits.GuildInvites,
+    ],
 });
 
+client.commands = new Collection();
+const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
 
+for (const file of commandFiles) {
+    const command = require(`./commands/${file}`);
+    client.commands.set(command.data.name, command);
+}
 
-// When the client is ready, run this code (only once)
 client.once('ready', () => {
-    console.log('Ready!');
+    console.log(`Logged in as ${client.user.tag}!`);
 });
 
-// Login to Discord with your app's token
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isCommand()) return;
+
+    const command = client.commands.get(interaction.commandName);
+
+    if (!command) return;
+
+    try {
+        await command.execute(interaction);
+    } catch (error) {
+        console.error(error);
+        await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
+    }
+});
+
 client.login(process.env.DISCORD_BOT_TOKEN);
