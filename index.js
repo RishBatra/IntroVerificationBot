@@ -1,7 +1,7 @@
 // Require the discord.js module
 const Discord = require('discord.js');
 // Require the validators module
-const { validateIntroMessage } = require('/validators/validateintro.js');
+const { validateIntroMessage } = require('./validators/validateIntro');
 
 //Setting Intents
 const { Client, GatewayIntentBits } = require('discord.js');
@@ -41,5 +41,10 @@ client.on('messageCreate', async message => {
 });
 
 // Login to Discord with your app's token
-client.login(process.env.DISCORD_BOT_TOKEN);
+client.once('ready', () => {
+    console.log(`Logged in as ${client.user.tag} and ready to go!`);
+});
 
+client.login(process.env.DISCORD_BOT_TOKEN).catch(error => {
+    console.error("Error logging in:", error);
+});
