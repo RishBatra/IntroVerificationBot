@@ -26,7 +26,20 @@ module.exports = {
         const otherRoles = member.roles.cache.filter(role => role.id !== verifiedRole.id && role.id !== interaction.guild.id);
 
         if (otherRoles.size > 0) {
-            await interaction.reply(`${targetUser.username} has roles other than Verified.`);
+            // Sort roles alphabetically by name
+            const sortedRoles = otherRoles.sort((a, b) => a.name.localeCompare(b.name));
+            // Create a string with each role on a new line
+            const roleList = sortedRoles.map(role => role.name).join('\n');
+
+            // Create the embed
+            const embed = new EmbedBuilder()
+                .setColor(0x0099FF)
+                .setTitle(`${targetUser.username}'s Roles`)
+                .setDescription(roleList)
+                .setTimestamp()
+                .setFooter({ text: 'Role List', iconURL: interaction.guild.iconURL() });
+
+            await interaction.reply({ embeds: [embed] });
         } else {
             // Ask for confirmation to send a message
             const row = new ActionRowBuilder()
