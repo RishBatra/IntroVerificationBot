@@ -10,12 +10,14 @@ module.exports = {
                 .setDescription('The user to mark as inactive')
                 .setRequired(true)),
     async execute(interaction) {
+        await interaction.deferReply(); // Defer the reply to avoid interaction expiry
+
         const user = interaction.options.getUser('user');
         const member = interaction.guild.members.cache.get(user.id);
         const inactiveRole = interaction.guild.roles.cache.find(role => role.name === 'Inactive ⏸');
 
         if (!inactiveRole) {
-            return interaction.reply('Inactive role not found.');
+            return interaction.editReply('Inactive role not found.'); // Use editReply to send the response
         }
 
         try {
@@ -48,10 +50,10 @@ module.exports = {
                 .setTimestamp();
 
             // Reply to the command interaction with the success embed
-            return interaction.reply({ embeds: [successEmbed] });
+            return interaction.editReply({ embeds: [successEmbed] }); // Use editReply to send the response
         } catch (error) {
             console.error('Error marking user as inactive:', error);
-            return interaction.reply('There was an error marking the user as inactive.');
+            return interaction.editReply('There was an error marking the user as inactive.'); // Use editReply to send the response
         }
     },
 };
