@@ -15,7 +15,7 @@ for (const file of commandFiles) {
     }
 }
 
-const rest = new REST({ version: '9' }).setToken(process.env.DISCORD_BOT_TOKEN);
+const rest = new REST({ version: '9' }).setToken(process.env.MY_DISCORD_BOT_TOKEN);
 
 rest.put(
     Routes.applicationCommands(process.env.CLIENT_ID),

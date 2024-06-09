@@ -80,7 +80,7 @@ exec('node deploy-command.js', (error, stdout, stderr) => {
         }, 10000); // Change status every 10 seconds
     });
 
-    client.login(process.env.DISCORD_BOT_TOKEN).catch(error => {
+    client.login(process.env.MY_DISCORD_BOT_TOKEN).catch(error => {
         console.error("Error logging in:", error);
     });
 });
