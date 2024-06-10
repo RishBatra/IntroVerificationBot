@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -31,6 +31,9 @@ module.exports = {
             return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
         }
 
+        // Acknowledge the interaction immediately
+        await interaction.deferReply({ ephemeral: true });
+
         // Create the embed message
         const embed = new EmbedBuilder()
             .setColor(0x00ff00)
@@ -41,6 +44,6 @@ module.exports = {
         await targetChannel.send({ embeds: [embed] });
 
         // Send success message
-        await interaction.reply({ content: `Message sent to ${targetChannel.name}.`, ephemeral: true });
+        await interaction.followUp({ content: `Message sent to ${targetChannel.name}.` });
     },
 };
