@@ -36,9 +36,30 @@ module.exports = {
             const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
             console.log('Time range calculated');
 
-            // Fetch up to 500 messages for recent activity
-            const allMessages = await selfiesChannel.messages.fetch({ limit: 500 });
-            console.log(`Total messages fetched: ${allMessages.size}`);
+            let lastMessageId;
+            const allMessages = [];
+            let fetchingMessages = true;
+
+            console.log('Starting message fetching process...');
+            while (fetchingMessages) {
+                const fetchedMessages = await selfiesChannel.messages.fetch({ limit: 100, before: lastMessageId });
+                console.log(`Fetched ${fetchedMessages.size} messages`);
+
+                if (fetchedMessages.size === 0) {
+                    fetchingMessages = false;
+                    break;
+                }
+
+                allMessages.push(...fetchedMessages.values());
+                lastMessageId = fetchedMessages.last()?.id;
+                console.log(`Last message ID: ${lastMessageId}`);
+
+                if (fetchedMessages.size < 100) {
+                    fetchingMessages = false;
+                }
+            }
+
+            console.log(`Total messages fetched: ${allMessages.length}`);
 
             const filteredMessages = allMessages.filter(message => 
                 message.attachments.size > 0 && 
@@ -46,7 +67,7 @@ module.exports = {
                 message.member && message.member.roles.cache.has(role.id)
             );
 
-            console.log(`Messages after filtering: ${filteredMessages.size}`);
+            console.log(`Messages after filtering: ${filteredMessages.length}`);
 
             const usersWithRole = interaction.guild.members.cache.filter(member => member.roles.cache.has(role.id));
             console.log(`Users with the specified role: ${usersWithRole.size}`);
