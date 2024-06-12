@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { Collection } = require('discord.js');
+const { Collection, MessageEmbed } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -36,18 +36,28 @@ module.exports = {
             const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
             console.log('Time range calculated');
 
-            let fetchedMessages;
             let lastMessageId;
             const allMessages = [];
+            let fetchingMessages = true;
 
             console.log('Starting message fetching process...');
-            do {
-                fetchedMessages = await selfiesChannel.messages.fetch({ limit: 100, before: lastMessageId });
+            while (fetchingMessages) {
+                const fetchedMessages = await selfiesChannel.messages.fetch({ limit: 100, before: lastMessageId });
                 console.log(`Fetched ${fetchedMessages.size} messages`);
+
+                if (fetchedMessages.size === 0) {
+                    fetchingMessages = false;
+                    break;
+                }
+
                 allMessages.push(...fetchedMessages.values());
                 lastMessageId = fetchedMessages.last()?.id;
                 console.log(`Last message ID: ${lastMessageId}`);
-            } while (fetchedMessages.size === 100);
+
+                if (fetchedMessages.size < 100) {
+                    fetchingMessages = false;
+                }
+            }
 
             console.log(`Total messages fetched: ${allMessages.length}`);
 
@@ -78,15 +88,22 @@ module.exports = {
                 await interaction.editReply('All users with the specified role have posted an image in the selfies channel within the last 30 days.');
             } else {
                 const userList = usersWhoDidNotPost.map(member => member.user.tag).join('\n');
+                const userMentions = usersWhoDidNotPost.map(member => `<@${member.id}>`).join(', ');
                 console.log('Users who did not post:', userList);
-                await interaction.editReply(`The following users with the specified role have not posted an image in the selfies channel within the last 30 days:\n${userList}`);
+
+                const embed = new MessageEmbed()
+                    .setTitle('Users who have not posted an image')
+                    .setDescription(`The following users with the specified role have not posted an image in the selfies channel within the last 30 days:\n${userList}`)
+                    .setColor('#FF0000');
+
+                await interaction.editReply({ content: `The following users have not posted an image: ${userMentions}`, embeds: [embed] });
             }
 
             console.log('Command execution completed');
         } catch (error) {
             console.error('Error executing command:', error);
             if (!interaction.replied) {
-                await interaction.editReply('An error occurred while executing the command.');
+                await interaction.editReply('An error occurred while executing the command. Please try again later.');
             }
         }
     },
