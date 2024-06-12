@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { Collection, MessageEmbed } = require('discord.js');
+const { Collection, EmbedBuilder } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -36,30 +36,9 @@ module.exports = {
             const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
             console.log('Time range calculated');
 
-            let lastMessageId;
-            const allMessages = [];
-            let fetchingMessages = true;
-
-            console.log('Starting message fetching process...');
-            while (fetchingMessages) {
-                const fetchedMessages = await selfiesChannel.messages.fetch({ limit: 100, before: lastMessageId });
-                console.log(`Fetched ${fetchedMessages.size} messages`);
-
-                if (fetchedMessages.size === 0) {
-                    fetchingMessages = false;
-                    break;
-                }
-
-                allMessages.push(...fetchedMessages.values());
-                lastMessageId = fetchedMessages.last()?.id;
-                console.log(`Last message ID: ${lastMessageId}`);
-
-                if (fetchedMessages.size < 100) {
-                    fetchingMessages = false;
-                }
-            }
-
-            console.log(`Total messages fetched: ${allMessages.length}`);
+            // Fetch up to 500 messages for recent activity
+            const allMessages = await selfiesChannel.messages.fetch({ limit: 500 });
+            console.log(`Total messages fetched: ${allMessages.size}`);
 
             const filteredMessages = allMessages.filter(message => 
                 message.attachments.size > 0 && 
@@ -67,7 +46,7 @@ module.exports = {
                 message.member && message.member.roles.cache.has(role.id)
             );
 
-            console.log(`Messages after filtering: ${filteredMessages.length}`);
+            console.log(`Messages after filtering: ${filteredMessages.size}`);
 
             const usersWithRole = interaction.guild.members.cache.filter(member => member.roles.cache.has(role.id));
             console.log(`Users with the specified role: ${usersWithRole.size}`);
@@ -91,7 +70,7 @@ module.exports = {
                 const userMentions = usersWhoDidNotPost.map(member => `<@${member.id}>`).join(', ');
                 console.log('Users who did not post:', userList);
 
-                const embed = new MessageEmbed()
+                const embed = new EmbedBuilder()
                     .setTitle('Users who have not posted an image')
                     .setDescription(`The following users with the specified role have not posted an image in the selfies channel within the last 30 days:\n${userList}`)
                     .setColor('#FF0000');
