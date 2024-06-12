@@ -3,11 +3,12 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 module.exports = {
     name: 'messageCreate',
     async execute(message) {
+        // Check if the message is from a guild or a DM
         if (message.guild) {
-            // Handle guild messages
+            // Handle guild messages here (e.g., intro validation)
             if (message.channel.name === 'intros') {
                 const { isValid, errors } = validateIntroMessage(message.content);
-
+                
                 if (!isValid) {
                     await message.reply(`Please correct your introduction:\n${errors.join('\n')}`);
                 } else {
