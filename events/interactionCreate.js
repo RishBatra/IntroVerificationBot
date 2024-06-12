@@ -1,5 +1,5 @@
 const { Events, ChannelType, PermissionsBitField, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
-const Ticket = require('../models/Ticket');
+const Ticket = require('../models/ticket');
 
 module.exports = {
     name: Events.InteractionCreate,
