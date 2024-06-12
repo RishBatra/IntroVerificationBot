@@ -1,12 +1,22 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionsBitField } = require('discord.js');
-const Ticket = require('../models/ticket');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
     name: 'messageCreate',
     async execute(message) {
-        if (message.guild) return; // Only handle DMs
+        // Only handle DMs
+        if (message.guild) return;
 
-        const guild = message.client.guilds.cache.get(process.env.GUILD_ID); // Use your guild ID
+        console.log('Received a DM:', message.content);
+
+        const guild = message.client.guilds.cache.get(process.env.GUILD_ID);
+        if (!guild) {
+            console.error('Guild not found. Please check your GUILD_ID.');
+            return;
+        }
+
+        const botMember = guild.members.cache.get(message.client.user.id);
+        console.log('Bot Permissions in the guild:', botMember.permissions.toArray());
+
         const serverAvatar = guild.iconURL();
 
         const embed = new EmbedBuilder()
@@ -26,6 +36,10 @@ module.exports = {
                 .setStyle(ButtonStyle.Danger)
         );
 
-        await message.author.send({ embeds: [embed], components: [row] });
+        try {
+            await message.author.send({ embeds: [embed], components: [row] });
+        } catch (error) {
+            console.error('Error sending DM to user:', error);
+        }
     },
 };

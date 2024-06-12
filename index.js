@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, ActivityType, PresenceUpdateStatus } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, ActivityType, PresenceUpdateStatus, Partials } = require('discord.js');
 const { exec } = require('child_process');
 require('dotenv').config();
 const commandHandler = require('./handlers/commandHandler');
@@ -26,7 +26,10 @@ const client = new Client({
         GatewayIntentBits.GuildMessageReactions,
         GatewayIntentBits.GuildWebhooks,
         GatewayIntentBits.GuildInvites,
+        GatewayIntentBits.DirectMessages, // Ensure you have this intent
+        GatewayIntentBits.MessageContent  // Required to read message content
     ],
+    partials: [Partials.Channel] // Required to read DMs
 });
 
 // Run the deploy-commands.js script
@@ -45,13 +48,49 @@ exec('node deploy-command.js', (error, stdout, stderr) => {
     eventHandler(client);
 
     client.on('messageCreate', async message => {
-        if (message.channel.name === 'intros') {
-            const { isValid, errors } = validateIntroMessage(message.content);
-            
-            if (!isValid) {
-                await message.reply(`Please correct your introduction:\n${errors.join('\n')}`);
-            } else {
-                // Handle valid introductions if needed
+        if (message.guild) {
+            if (message.channel.name === 'intros') {
+                const { isValid, errors } = validateIntroMessage(message.content);
+                
+                if (!isValid) {
+                    await message.reply(`Please correct your introduction:\n${errors.join('\n')}`);
+                } else {
+                    // Handle valid introductions if needed
+                }
+            }
+        } else {
+            // Handle DMs
+            console.log('Received a DM:', message.content); // Debugging log
+
+            const guild = client.guilds.cache.get(process.env.GUILD_ID); // Use your guild ID
+            if (!guild) {
+                console.error('Guild not found. Please check your GUILD_ID.');
+                return;
+            }
+
+            const serverAvatar = guild.iconURL();
+
+            const embed = new EmbedBuilder()
+                .setTitle(`Open a ticket in ${guild.name}`)
+                .setDescription('Do you want to open a ticket?')
+                .setThumbnail(serverAvatar)
+                .setColor(0x00AE86);
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('ticket_yes')
+                    .setLabel('✅ Yes')
+                    .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                    .setCustomId('ticket_no')
+                    .setLabel('❌ No')
+                    .setStyle(ButtonStyle.Danger)
+            );
+
+            try {
+                await message.author.send({ embeds: [embed], components: [row] });
+            } catch (error) {
+                console.error('Error sending DM to user:', error);
             }
         }
     });
