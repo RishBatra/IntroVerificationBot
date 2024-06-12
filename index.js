@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, ActivityType, PresenceUpdateStatus, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, ActivityType, PresenceUpdateStatus, Partials, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { exec } = require('child_process');
 require('dotenv').config();
 const commandHandler = require('./handlers/commandHandler');
