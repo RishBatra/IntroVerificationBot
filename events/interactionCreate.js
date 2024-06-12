@@ -1,5 +1,5 @@
-const { Events, ChannelType, PermissionsBitField, EmbedBuilder, ActionRowBuilder, SelectMenuBuilder } = require('discord.js');
-const Ticket = require('../models/ticket');
+const { Events, ChannelType, PermissionsBitField, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const Ticket = require('../models/Ticket');
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -31,7 +31,7 @@ module.exports = {
                     .setColor(0x00AE86);
 
                 const row = new ActionRowBuilder().addComponents(
-                    new SelectMenuBuilder()
+                    new StringSelectMenuBuilder()
                         .setCustomId('select_ticket_type')
                         .setPlaceholder('Select a ticket type')
                         .addOptions([
@@ -48,7 +48,7 @@ module.exports = {
             } else if (interaction.customId === 'ticket_no') {
                 await interaction.reply({ content: 'Ticket creation cancelled.', ephemeral: true });
             }
-        } else if (interaction.isSelectMenu()) {
+        } else if (interaction.isStringSelectMenu()) {
             if (interaction.customId === 'select_ticket_type') {
                 const ticketType = interaction.values[0];
                 const guild = interaction.client.guilds.cache.get(process.env.GUILD_ID);
