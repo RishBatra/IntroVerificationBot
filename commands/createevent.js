@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageEmbed } = require('discord.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -18,55 +18,139 @@ module.exports = {
         .setRequired(true))
     .addStringOption(option =>
       option.setName('date')
-        .setDescription('The date of the event (DD:MM:YY or DD/MM/YY)')
+        .setDescription('The date of the event (DD:MM:YY, DD/MM/YY, today, tomorrow, or this <day of week>)')
         .setRequired(true))
     .addStringOption(option =>
       option.setName('starttime')
-        .setDescription('The start time of the event (HH:MM, HHMM, or HH)')
+        .setDescription('The start time of the event (HH:MM, HHMM, HH:MMAM/PM, HHMMAM/PM, or HHAM/PM)')
         .setRequired(true))
     .addStringOption(option =>
       option.setName('endtime')
-        .setDescription('The end time of the event (HH:MM, HHMM, or HH)')
+        .setDescription('The end time of the event (HH:MM, HHMM, HH:MMAM/PM, HHMMAM/PM, or HHAM/PM)')
         .setRequired(true)),
   async execute(interaction) {
-    const requiredRoles = ['Admins', 'Contributors', 'Proud Guardians'];
-    const memberRoles = interaction.member.roles.cache.map(role => role.name);
+    const requiredRoles = new Set(['Admins', 'Contributors', 'Proud Guardians']);
+    const memberRoles = new Set(interaction.member.roles.cache.map(role => role.name));
+    const roleToMention = '861562283921244161'; // Replace with the actual role ID
+    const notificationChannelId = '863436760234065971'; // Replace with the actual channel ID
 
-    if (!requiredRoles.some(role => memberRoles.includes(role))) {
+    if (![...requiredRoles].some(role => memberRoles.has(role))) {
       return interaction.reply({ content: 'You do not have the required roles to use this command.', ephemeral: true });
     }
 
     const name = interaction.options.getString('name');
     const description = interaction.options.getString('description');
     const channel = interaction.options.getChannel('channel');
-    const date = interaction.options.getString('date');
+    let date = interaction.options.getString('date').toLowerCase();
     let startTime = interaction.options.getString('starttime');
     let endTime = interaction.options.getString('endtime');
 
     console.log(`Date: ${date}, Start Time: ${startTime}, End Time: ${endTime}`);
 
-    // Handle date format
-    let [day, month, year] = date.split(/[:/]/);
+    // Function to parse natural language dates
+    const parseNaturalDate = (input) => {
+      const today = new Date();
+      let day, month, year;
 
-    if (!day || !month || !year) {
-      return interaction.reply({ content: 'Invalid date format. Please use DD:MM:YY or DD/MM/YY.', ephemeral: true });
+      if (input === 'today') {
+        day = today.getDate();
+        month = today.getMonth() + 1;
+        year = today.getFullYear();
+      } else if (input === 'tomorrow') {
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        day = tomorrow.getDate();
+        month = tomorrow.getMonth() + 1;
+        year = tomorrow.getFullYear();
+      } else if (input.startsWith('this ')) {
+        const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const targetDay = daysOfWeek.indexOf(input.split(' ')[1]);
+        if (targetDay === -1) {
+          return null;
+        }
+        const currentDay = today.getDay();
+        let diff = targetDay - currentDay;
+        if (diff < 0) {
+          diff += 7;
+        }
+        const targetDate = new Date(today);
+        targetDate.setDate(today.getDate() + diff);
+        day = targetDate.getDate();
+        month = targetDate.getMonth() + 1;
+        year = targetDate.getFullYear();
+      } else {
+        const dateParts = input.split(/[:/]/);
+        if (dateParts.length !== 3) {
+          return null;
+        }
+        [day, month, year] = dateParts;
+        if (year.length === 2) {
+          year = `20${year}`;
+        }
+      }
+
+      return `${String(day).padStart(2, '0')}-${String(month).padStart(2, '0')}-${year}`;
+    };
+
+    // Parse date
+    date = parseNaturalDate(date);
+    if (!date) {
+      return interaction.reply({ content: 'Invalid date format. Please use DD:MM:YY, DD/MM/YY, today, tomorrow, or this <day of week>.', ephemeral: true });
     }
 
-    // Ensure year is in full format
-    year = year.length === 2 ? `20${year}` : year;
+    // Convert date to YYYY-MM-DD format
+    let [day, month, year] = date.split('-');
 
     // Handle time format
     const formatTime = (time) => {
-      if (time.length === 2) {
-        return `${time}:00`;
-      } else if (time.length === 4) {
-        return `${time.slice(0, 2)}:${time.slice(2)}`;
+      const meridiemMatch = time.match(/(am|pm)$/i);
+      let hours, minutes = '00';
+
+      if (meridiemMatch) {
+        const meridiem = meridiemMatch[1].toLowerCase();
+        time = time.slice(0, -2);
+
+        if (time.includes(':')) {
+          [hours, minutes] = time.split(':');
+        } else {
+          hours = time.slice(0, -2);
+          minutes = time.slice(-2);
+        }
+
+        hours = parseInt(hours, 10);
+        minutes = parseInt(minutes, 10);
+
+        if (meridiem === 'pm' && hours !== 12) {
+          hours += 12;
+        } else if (meridiem === 'am' && hours === 12) {
+          hours = 0;
+        }
+
+      } else {
+        if (time.includes(':')) {
+          [hours, minutes] = time.split(':');
+        } else if (time.length === 4) {
+          hours = time.slice(0, 2);
+          minutes = time.slice(2);
+        } else {
+          hours = time;
+        }
+        hours = parseInt(hours, 10);
+        minutes = parseInt(minutes, 10);
       }
-      return time;
+
+      if (hours < 10) hours = `0${hours}`;
+      if (minutes < 10) minutes = `0${minutes}`;
+
+      return `${hours}:${minutes}`;
     };
 
     startTime = formatTime(startTime);
     endTime = formatTime(endTime);
+
+    if (!startTime || !endTime) {
+      return interaction.reply({ content: 'Invalid time format. Please use HH:MM, HHMM, HH:MMAM/PM, HHMMAM/PM, or HHAM/PM.', ephemeral: true });
+    }
 
     // Handle endTime being "24:00"
     if (endTime === "24:00") {
@@ -114,6 +198,24 @@ module.exports = {
         channel: channel.id,
         description,
       });
+
+      const notificationChannel = await interaction.guild.channels.fetch(notificationChannelId);
+
+      const embed = new MessageEmbed()
+        .setTitle(`New Event Created: ${name}`)
+        .setDescription(description)
+        .addField('Start Time', startDateTime.toLocaleString(), true)
+        .addField('End Time', endDateTime.toLocaleString(), true)
+        .addField('Event Link', `[Join Event](${event.url})`)
+        .setColor('#00FF00')
+        .setTimestamp()
+        .setFooter('Event created by your friendly bot');
+
+      await notificationChannel.send({
+        content: `<@&${roleToMention}> A new event has been created!`,
+        embeds: [embed],
+      });
+
       await interaction.reply(`Created event: ${event.name}`);
     } catch (error) {
       console.error('Error creating event:', error);
