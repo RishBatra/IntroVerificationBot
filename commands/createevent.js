@@ -144,15 +144,15 @@ module.exports = {
       parsedDate = addDays(parsedDate, 1);
     }
 
-    // Convert to UTC
-    const convertToUTC = (date, time) => {
+    // Convert IST to UTC
+    const convertISTToUTC = (date, time) => {
       const [hours, minutes] = time.split(':');
-      date.setHours(hours, minutes, 0, 0);
+      date.setHours(hours - 5, minutes - 30); // IST is UTC +5:30
       return new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
     };
 
-    const startDateTime = convertToUTC(parsedDate, startTime);
-    const endDateTime = convertToUTC(parsedDate, endTime);
+    const startDateTime = convertISTToUTC(parsedDate, startTime);
+    const endDateTime = convertISTToUTC(parsedDate, endTime);
 
     console.log(`Start DateTime: ${startDateTime}`);
     console.log(`End DateTime: ${endDateTime}`);
