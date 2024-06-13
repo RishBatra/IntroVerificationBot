@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, MessageEmbed } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -31,8 +31,8 @@ module.exports = {
   async execute(interaction) {
     const requiredRoles = new Set(['Admins', 'Contributors', 'Proud Guardians']);
     const memberRoles = new Set(interaction.member.roles.cache.map(role => role.name));
-    const roleToMention = '861562283921244161'; // Replace with the actual role ID
-    const notificationChannelId = '863436760234065971'; // Replace with the actual channel ID
+    const roleToMention = 'ROLE_ID_HERE'; // Replace with the actual role ID
+    const notificationChannelId = 'NOTIFICATION_CHANNEL_ID_HERE'; // Replace with the actual channel ID
 
     if (![...requiredRoles].some(role => memberRoles.has(role))) {
       return interaction.reply({ content: 'You do not have the required roles to use this command.', ephemeral: true });
@@ -204,12 +204,14 @@ module.exports = {
 
       const notificationChannel = await interaction.guild.channels.fetch(notificationChannelId);
 
-      const embed = new MessageEmbed()
+      const embed = new EmbedBuilder()
         .setTitle(`New Event Created: ${name}`)
         .setDescription(description)
-        .addField('Start Time', startDateTime.toLocaleString(), true)
-        .addField('End Time', endDateTime.toLocaleString(), true)
-        .addField('Event Link', `[Join Event](${event.url})`)
+        .addFields(
+          { name: 'Start Time', value: startDateTime.toLocaleString(), inline: true },
+          { name: 'End Time', value: endDateTime.toLocaleString(), inline: true },
+          { name: 'Event Link', value: `[Join Event](${event.url})` }
+        )
         .setColor('#00FF00')
         .setTimestamp()
         .setFooter('Event created by your friendly bot');
