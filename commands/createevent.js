@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { parse, format, addDays, isValid } = require('date-fns');
-const { formatISO, add } = require('date-fns-tz');
+const { parse, format, addDays, addWeeks, isValid, parseISO } = require('date-fns');
+const { zonedTimeToUtc, formatISO, utcToZonedTime } = require('date-fns-tz');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -34,7 +34,7 @@ module.exports = {
     const requiredRoles = new Set(['Admins', 'Contributors', 'Proud Guardians']);
     const memberRoles = new Set(interaction.member.roles.cache.map(role => role.name));
     const roleToMention = '861562283921244161'; // Replace with the actual role ID
-    const notificationChannelId = '863436760234065971'; // Replace with the actual channel ID
+    const notificationChannelId = 'NOTIFICATION_CHANNEL_ID_HERE'; // Replace with the actual channel ID
 
     if (![...requiredRoles].some(role => memberRoles.has(role))) {
       return interaction.reply({ content: 'You do not have the required roles to use this command.', ephemeral: true });
@@ -146,31 +146,31 @@ module.exports = {
     }
 
     const timeZone = 'Asia/Kolkata';
-    const startDateTime = formatISO(new Date(`${format(parsedDate, 'yyyy-MM-dd')}T${startTime}:00`), { representation: 'complete', timeZone });
-    const endDateTime = formatISO(new Date(`${format(parsedDate, 'yyyy-MM-dd')}T${endTime}:00`), { representation: 'complete', timeZone });
+    const startDateTime = zonedTimeToUtc(new Date(`${format(parsedDate, 'yyyy-MM-dd')}T${startTime}:00`), timeZone);
+    const endDateTime = zonedTimeToUtc(new Date(`${format(parsedDate, 'yyyy-MM-dd')}T${endTime}:00`), timeZone);
 
     console.log(`Start DateTime: ${startDateTime}`);
     console.log(`End DateTime: ${endDateTime}`);
 
-    if (!isValid(parseISO(startDateTime)) || !isValid(parseISO(endDateTime))) {
+    if (!isValid(startDateTime) || !isValid(endDateTime)) {
       return interaction.reply({ content: 'Invalid date or time format.', ephemeral: true });
     }
 
     // Adjust the dates to ensure they are in the future
     const now = new Date();
-    if (new Date(startDateTime) <= now || new Date(endDateTime) <= now) {
+    if (startDateTime <= now || endDateTime <= now) {
       return interaction.reply({ content: 'Event times must be in the future.', ephemeral: true });
     }
 
-    if (new Date(startDateTime) >= new Date(endDateTime)) {
+    if (startDateTime >= endDateTime) {
       return interaction.reply({ content: 'The start time must be before the end time.', ephemeral: true });
     }
 
     try {
       const event = await interaction.guild.scheduledEvents.create({
         name,
-        scheduledStartTime: startDateTime,
-        scheduledEndTime: endDateTime,
+        scheduledStartTime: startDateTime.toISOString(),
+        scheduledEndTime: endDateTime.toISOString(),
         privacyLevel: 2, // GUILD_ONLY
         entityType: 2, // VOICE
         channel: channel.id,
@@ -183,8 +183,8 @@ module.exports = {
         .setTitle(`New Event Created: ${name}`)
         .setDescription(description)
         .addFields(
-          { name: 'Start Time', value: format(new Date(startDateTime), 'yyyy-MM-dd HH:mm:ss', { timeZone }), inline: true },
-          { name: 'End Time', value: format(new Date(endDateTime), 'yyyy-MM-dd HH:mm:ss', { timeZone }), inline: true },
+          { name: 'Start Time', value: format(startDateTime, 'yyyy-MM-dd HH:mm:ss', { timeZone }), inline: true },
+          { name: 'End Time', value: format(endDateTime, 'yyyy-MM-dd HH:mm:ss', { timeZone }), inline: true },
           { name: 'Event Link', value: `[Join Event](${event.url})` }
         )
         .setColor('#00FF00')
