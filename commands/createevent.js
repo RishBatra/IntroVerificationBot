@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { parse, format, addDays, isValid } = require('date-fns');
-const { zonedTimeToUtc } = require('date-fns-tz');
+const { parse, format, addDays, isValid, setHours, setMinutes } = require('date-fns');
+const { zonedTimeToUtc, utcToZonedTime } = require('date-fns-tz');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -145,11 +145,12 @@ module.exports = {
       parsedDate = addDays(parsedDate, 1);
     }
 
-    // Combine date and time in IST
+    // Combine date and time
     const combineDateTime = (date, time) => {
       const [hours, minutes] = time.split(':');
-      date.setHours(hours, minutes, 0, 0);
-      return date;
+      const result = new Date(date);
+      result.setHours(hours, minutes, 0, 0);
+      return result;
     };
 
     const startDateTime = combineDateTime(parsedDate, startTime);
@@ -189,8 +190,8 @@ module.exports = {
         .setTitle(`New Event Created: ${name}`)
         .setDescription(description)
         .addFields(
-          { name: 'Start Time', value: format(startDateTime, 'dd-MM-yyyy HH:mm'), inline: true },
-          { name: 'End Time', value: format(endDateTime, 'dd-MM-yyyy HH:mm'), inline: true },
+          { name: 'Start Time', value: format(startDateTime, 'yyyy-MM-dd HH:mm:ss'), inline: true },
+          { name: 'End Time', value: format(endDateTime, 'yyyy-MM-dd HH:mm:ss'), inline: true },
           { name: 'Event Link', value: `[Join Event](${event.url})` }
         )
         .setColor('#00FF00')
