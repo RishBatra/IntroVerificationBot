@@ -112,9 +112,11 @@ module.exports = {
 
         if (time.includes(':')) {
           [hours, minutes] = time.split(':');
+        } else if (time.length === 4) {
+          hours = time.slice(0, 2);
+          minutes = time.slice(2);
         } else {
-          hours = time.slice(0, -2);
-          minutes = time.slice(-2);
+          hours = time;
         }
 
         hours = parseInt(hours, 10);
@@ -160,6 +162,7 @@ module.exports = {
       const newDay = String(endDate.getDate()).padStart(2, '0');
       const newMonth = String(endDate.getMonth() + 1).padStart(2, '0'); // Months are zero-based
       const newYear = endDate.getFullYear();
+      endTime = '00:00';
     }
 
     const startDateTimeString = `${year}-${month}-${day}T${startTime}:00`;
