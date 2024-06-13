@@ -1,4 +1,8 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { parse, format, addDays, addWeeks, isValid, parseISO } = require('date-fns');
+const { utcToZonedTime, zonedTimeToUtc } = require('date-fns-tz');
+
+const timeZone = 'Asia/Kolkata';
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -31,7 +35,7 @@ module.exports = {
   async execute(interaction) {
     const requiredRoles = new Set(['Admins', 'Contributors', 'Proud Guardians']);
     const memberRoles = new Set(interaction.member.roles.cache.map(role => role.name));
-    const roleToMention = 'role:861562283921244161'; // Replace with the actual role ID
+    const roleToMention = '861562283921244161'; // Replace with the actual role ID
     const notificationChannelId = '863436760234065971'; // Replace with the actual channel ID
 
     if (![...requiredRoles].some(role => memberRoles.has(role))) {
@@ -50,18 +54,12 @@ module.exports = {
     // Function to parse natural language dates
     const parseNaturalDate = (input) => {
       const today = new Date();
-      let day, month, year;
+      let targetDate;
 
       if (input === 'today') {
-        day = today.getDate();
-        month = today.getMonth() + 1;
-        year = today.getFullYear();
+        targetDate = today;
       } else if (input === 'tomorrow') {
-        const tomorrow = new Date(today);
-        tomorrow.setDate(today.getDate() + 1);
-        day = tomorrow.getDate();
-        month = tomorrow.getMonth() + 1;
-        year = tomorrow.getFullYear();
+        targetDate = addDays(today, 1);
       } else if (input.startsWith('this ')) {
         const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         const targetDay = daysOfWeek.indexOf(input.split(' ')[1]);
@@ -73,23 +71,24 @@ module.exports = {
         if (diff < 0) {
           diff += 7;
         }
-        const targetDate = new Date(today);
-        targetDate.setDate(today.getDate() + diff);
-        day = targetDate.getDate();
-        month = targetDate.getMonth() + 1;
-        year = targetDate.getFullYear();
+        targetDate = addDays(today, diff);
       } else {
         const dateParts = input.split(/[:/]/);
         if (dateParts.length !== 3) {
           return null;
         }
-        [day, month, year] = dateParts;
+        let [day, month, year] = dateParts;
         if (year.length === 2) {
           year = `20${year}`;
         }
+        const parsedDate = parse(`${year}-${month}-${day}`, 'yyyy-MM-dd', new Date());
+        if (!isValid(parsedDate)) {
+          return null;
+        }
+        targetDate = parsedDate;
       }
 
-      return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      return targetDate;
     };
 
     // Parse date
@@ -97,9 +96,6 @@ module.exports = {
     if (!parsedDate) {
       return interaction.reply({ content: 'Invalid date format. Please use DD:MM:YY, DD/MM/YY, today, tomorrow, or this <day of week>.', ephemeral: true });
     }
-
-    // Convert date to YYYY-MM-DD format
-    const [year, month, day] = parsedDate.split('-');
 
     // Handle time format
     const formatTime = (time) => {
@@ -157,27 +153,16 @@ module.exports = {
     // Handle endTime being "24:00"
     if (endTime === "24:00") {
       endTime = "00:00";
-      const endDate = new Date(`${year}-${month}-${day}T00:00:00`);
-      endDate.setDate(endDate.getDate() + 1); // Move to the next day
-      const newDay = String(endDate.getDate()).padStart(2, '0');
-      const newMonth = String(endDate.getMonth() + 1).padStart(2, '0'); // Months are zero-based
-      const newYear = endDate.getFullYear();
-      endTime = '00:00';
+      parsedDate = addDays(parsedDate, 1);
     }
 
-    const startDateTimeString = `${year}-${month}-${day}T${startTime}:00`;
-    const endDateTimeString = `${year}-${month}-${day}T${endTime}:00`;
-
-    console.log(`Start DateTime String: ${startDateTimeString}`);
-    console.log(`End DateTime String: ${endDateTimeString}`);
-
-    const startDateTime = new Date(startDateTimeString);
-    const endDateTime = new Date(endDateTimeString);
+    const startDateTime = zonedTimeToUtc(`${format(parsedDate, 'yyyy-MM-dd')}T${startTime}:00`, timeZone);
+    const endDateTime = zonedTimeToUtc(`${format(parsedDate, 'yyyy-MM-dd')}T${endTime}:00`, timeZone);
 
     console.log(`Start DateTime: ${startDateTime}`);
     console.log(`End DateTime: ${endDateTime}`);
 
-    if (isNaN(startDateTime) || isNaN(endDateTime)) {
+    if (!isValid(startDateTime) || !isValid(endDateTime)) {
       return interaction.reply({ content: 'Invalid date or time format.', ephemeral: true });
     }
 
@@ -208,8 +193,8 @@ module.exports = {
         .setTitle(`New Event Created: ${name}`)
         .setDescription(description)
         .addFields(
-          { name: 'Start Time', value: startDateTime.toLocaleString(), inline: true },
-          { name: 'End Time', value: endDateTime.toLocaleString(), inline: true },
+          { name: 'Start Time', value: format(startDateTime, 'PPpp', { timeZone }), inline: true },
+          { name: 'End Time', value: format(endDateTime, 'PPpp', { timeZone }), inline: true },
           { name: 'Event Link', value: `[Join Event](${event.url})` }
         )
         .setColor('#00FF00')
