@@ -89,17 +89,17 @@ module.exports = {
         }
       }
 
-      return `${String(day).padStart(2, '0')}-${String(month).padStart(2, '0')}-${year}`;
+      return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     };
 
     // Parse date
-    date = parseNaturalDate(date);
-    if (!date) {
+    const parsedDate = parseNaturalDate(date);
+    if (!parsedDate) {
       return interaction.reply({ content: 'Invalid date format. Please use DD:MM:YY, DD/MM/YY, today, tomorrow, or this <day of week>.', ephemeral: true });
     }
 
     // Convert date to YYYY-MM-DD format
-    let [day, month, year] = date.split('-');
+    const [year, month, day] = parsedDate.split('-');
 
     // Handle time format
     const formatTime = (time) => {
@@ -157,9 +157,9 @@ module.exports = {
       endTime = "00:00";
       const endDate = new Date(`${year}-${month}-${day}T00:00:00`);
       endDate.setDate(endDate.getDate() + 1); // Move to the next day
-      day = String(endDate.getDate()).padStart(2, '0');
-      month = String(endDate.getMonth() + 1).padStart(2, '0'); // Months are zero-based
-      year = endDate.getFullYear();
+      const newDay = String(endDate.getDate()).padStart(2, '0');
+      const newMonth = String(endDate.getMonth() + 1).padStart(2, '0'); // Months are zero-based
+      const newYear = endDate.getFullYear();
     }
 
     const startDateTimeString = `${year}-${month}-${day}T${startTime}:00`;
