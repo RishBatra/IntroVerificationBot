@@ -31,7 +31,7 @@ module.exports = {
   async execute(interaction) {
     const requiredRoles = new Set(['Admins', 'Contributors', 'Proud Guardians']);
     const memberRoles = new Set(interaction.member.roles.cache.map(role => role.name));
-    const roleToMention = '861562283921244161'; // Replace with the actual role ID
+    const roleToMention = 'role:861562283921244161'; // Replace with the actual role ID
     const notificationChannelId = '863436760234065971'; // Replace with the actual channel ID
 
     if (![...requiredRoles].some(role => memberRoles.has(role))) {
@@ -214,7 +214,7 @@ module.exports = {
         )
         .setColor('#00FF00')
         .setTimestamp()
-        .setFooter('Event created by your friendly bot');
+        .setFooter({ text: 'Event created by your friendly bot' });
 
       await notificationChannel.send({
         content: `<@&${roleToMention}> A new event has been created!`,
