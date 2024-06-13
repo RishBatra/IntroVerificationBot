@@ -1,6 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { parse, format, addDays, isValid, addHours, addMinutes } = require('date-fns');
-const { zonedTimeToUtc } = require('date-fns-tz');
+const { parse, format, addDays, isValid } = require('date-fns');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -145,17 +144,15 @@ module.exports = {
       parsedDate = addDays(parsedDate, 1);
     }
 
-    // Combine date and time in the correct time zone
-    const combineDateTime = (date, time, timeZone) => {
+    // Convert to UTC
+    const convertToUTC = (date, time) => {
       const [hours, minutes] = time.split(':');
-      const localDate = new Date(date);
-      localDate.setHours(hours, minutes);
-      return zonedTimeToUtc(localDate, timeZone);
+      date.setHours(hours, minutes, 0, 0);
+      return new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
     };
 
-    const timeZone = 'Asia/Kolkata';
-    const startDateTime = combineDateTime(parsedDate, startTime, timeZone);
-    const endDateTime = combineDateTime(parsedDate, endTime, timeZone);
+    const startDateTime = convertToUTC(parsedDate, startTime);
+    const endDateTime = convertToUTC(parsedDate, endTime);
 
     console.log(`Start DateTime: ${startDateTime}`);
     console.log(`End DateTime: ${endDateTime}`);
@@ -191,8 +188,8 @@ module.exports = {
         .setTitle(`New Event Created: ${name}`)
         .setDescription(description)
         .addFields(
-          { name: 'Start Time', value: format(startDateTime, 'yyyy-MM-dd HH:mm:ss', { timeZone }), inline: true },
-          { name: 'End Time', value: format(endDateTime, 'yyyy-MM-dd HH:mm:ss', { timeZone }), inline: true },
+          { name: 'Start Time', value: format(startDateTime, 'yyyy-MM-dd HH:mm:ss'), inline: true },
+          { name: 'End Time', value: format(endDateTime, 'yyyy-MM-dd HH:mm:ss'), inline: true },
           { name: 'Event Link', value: `[Join Event](${event.url})` }
         )
         .setColor('#00FF00')
