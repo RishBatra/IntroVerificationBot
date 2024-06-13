@@ -3,6 +3,8 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 module.exports = {
     name: 'messageCreate',
     async execute(message) {
+        console.log('Message received:', message.content); // Debugging log
+        
         // Check if the message is from a guild or a DM
         if (message.guild) {
             // Handle guild messages here (e.g., intro validation)
@@ -10,8 +12,10 @@ module.exports = {
                 const { isValid, errors } = validateIntroMessage(message.content);
                 
                 if (!isValid) {
+                    console.log('Invalid intro message:', errors); // Debugging log
                     await message.reply(`Please correct your introduction:\n${errors.join('\n')}`);
                 } else {
+                    console.log('Valid intro message received.'); // Debugging log
                     // Handle valid introductions if needed
                 }
             }
@@ -46,6 +50,7 @@ module.exports = {
 
             try {
                 await message.author.send({ embeds: [embed], components: [row] });
+                console.log('DM sent successfully.'); // Debugging log
             } catch (error) {
                 if (error.code === 50007) {
                     console.error('Cannot send messages to this user:', error.message);
