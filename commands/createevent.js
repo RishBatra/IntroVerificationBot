@@ -147,8 +147,9 @@ module.exports = {
     // Convert IST to UTC
     const convertISTToUTC = (date, time) => {
       const [hours, minutes] = time.split(':');
-      date.setHours(hours - 5, minutes - 30); // IST is UTC +5:30
-      return new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+      const localDate = new Date(date);
+      localDate.setHours(hours - 5, minutes - 30); // IST is UTC +5:30
+      return new Date(localDate.getTime() + (5.5 * 60 * 60 * 1000));
     };
 
     const startDateTime = convertISTToUTC(parsedDate, startTime);
