@@ -1,6 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { parse, format, addDays, addWeeks, isValid, parseISO } = require('date-fns');
-const { zonedTimeToUtc, formatISO, utcToZonedTime } = require('date-fns-tz');
+const { parse, format, addDays, isValid } = require('date-fns');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -146,8 +145,16 @@ module.exports = {
     }
 
     const timeZone = 'Asia/Kolkata';
-    const startDateTime = zonedTimeToUtc(new Date(`${format(parsedDate, 'yyyy-MM-dd')}T${startTime}:00`), timeZone);
-    const endDateTime = zonedTimeToUtc(new Date(`${format(parsedDate, 'yyyy-MM-dd')}T${endTime}:00`), timeZone);
+
+    // Convert local time to UTC
+    const convertToUTC = (date, time, timeZone) => {
+      const localDateTime = new Date(`${format(date, 'yyyy-MM-dd')}T${time}:00`);
+      const utcDateTime = new Date(localDateTime.toLocaleString('en-US', { timeZone }));
+      return utcDateTime;
+    };
+
+    const startDateTime = convertToUTC(parsedDate, startTime, timeZone);
+    const endDateTime = convertToUTC(parsedDate, endTime, timeZone);
 
     console.log(`Start DateTime: ${startDateTime}`);
     console.log(`End DateTime: ${endDateTime}`);
