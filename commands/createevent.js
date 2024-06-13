@@ -2,8 +2,6 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { parse, format, addDays, addWeeks, isValid, parseISO } = require('date-fns');
 const { utcToZonedTime, zonedTimeToUtc } = require('date-fns-tz');
 
-const timeZone = 'Asia/Kolkata';
-
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('createevent')
@@ -66,12 +64,7 @@ module.exports = {
         if (targetDay === -1) {
           return null;
         }
-        const currentDay = today.getDay();
-        let diff = targetDay - currentDay;
-        if (diff < 0) {
-          diff += 7;
-        }
-        targetDate = addDays(today, diff);
+        targetDate = addDays(today, (targetDay + 7 - today.getDay()) % 7);
       } else {
         const dateParts = input.split(/[:/]/);
         if (dateParts.length !== 3) {
@@ -81,11 +74,7 @@ module.exports = {
         if (year.length === 2) {
           year = `20${year}`;
         }
-        const parsedDate = parse(`${year}-${month}-${day}`, 'yyyy-MM-dd', new Date());
-        if (!isValid(parsedDate)) {
-          return null;
-        }
-        targetDate = parsedDate;
+        targetDate = new Date(year, month - 1, day);
       }
 
       return targetDate;
@@ -93,7 +82,7 @@ module.exports = {
 
     // Parse date
     const parsedDate = parseNaturalDate(date);
-    if (!parsedDate) {
+    if (!isValid(parsedDate)) {
       return interaction.reply({ content: 'Invalid date format. Please use DD:MM:YY, DD/MM/YY, today, tomorrow, or this <day of week>.', ephemeral: true });
     }
 
@@ -156,8 +145,9 @@ module.exports = {
       parsedDate = addDays(parsedDate, 1);
     }
 
-    const startDateTime = zonedTimeToUtc(`${format(parsedDate, 'yyyy-MM-dd')}T${startTime}:00`, timeZone);
-    const endDateTime = zonedTimeToUtc(`${format(parsedDate, 'yyyy-MM-dd')}T${endTime}:00`, timeZone);
+    const timeZone = 'Asia/Kolkata';
+    const startDateTime = utcToZonedTime(`${format(parsedDate, 'yyyy-MM-dd')}T${startTime}:00Z`, timeZone);
+    const endDateTime = utcToZonedTime(`${format(parsedDate, 'yyyy-MM-dd')}T${endTime}:00Z`, timeZone);
 
     console.log(`Start DateTime: ${startDateTime}`);
     console.log(`End DateTime: ${endDateTime}`);
@@ -167,7 +157,7 @@ module.exports = {
     }
 
     // Adjust the dates to ensure they are in the future
-    const now = new Date();
+    const now = utcToZonedTime(new Date(), timeZone);
     if (startDateTime <= now || endDateTime <= now) {
       return interaction.reply({ content: 'Event times must be in the future.', ephemeral: true });
     }
@@ -193,8 +183,8 @@ module.exports = {
         .setTitle(`New Event Created: ${name}`)
         .setDescription(description)
         .addFields(
-          { name: 'Start Time', value: format(startDateTime, 'PPpp', { timeZone }), inline: true },
-          { name: 'End Time', value: format(endDateTime, 'PPpp', { timeZone }), inline: true },
+          { name: 'Start Time', value: format(startDateTime, 'yyyy-MM-dd HH:mm:ss', { timeZone }), inline: true },
+          { name: 'End Time', value: format(endDateTime, 'yyyy-MM-dd HH:mm:ss', { timeZone }), inline: true },
           { name: 'Event Link', value: `[Join Event](${event.url})` }
         )
         .setColor('#00FF00')
