@@ -33,7 +33,7 @@ module.exports = {
     const requiredRoles = new Set(['Admins', 'Contributors', 'Proud Guardians']);
     const memberRoles = new Set(interaction.member.roles.cache.map(role => role.name));
     const roleToMention = '861562283921244161'; // Replace with the actual role ID
-    const notificationChannelId = '863436760234065971'; // Replace with the actual channel ID
+    const notificationChannelId = 'NOTIFICATION_CHANNEL_ID_HERE'; // Replace with the actual channel ID
 
     if (![...requiredRoles].some(role => memberRoles.has(role))) {
       return interaction.reply({ content: 'You do not have the required roles to use this command.', ephemeral: true });
@@ -148,8 +148,9 @@ module.exports = {
 
     // Convert local time to UTC
     const convertToUTC = (date, time, timeZone) => {
-      const localDateTime = new Date(`${format(date, 'yyyy-MM-dd')}T${time}:00`);
-      const utcDateTime = new Date(localDateTime.toLocaleString('en-US', { timeZone }));
+      const [hours, minutes] = time.split(':');
+      date.setHours(hours, minutes);
+      const utcDateTime = new Date(date.toLocaleString('en-US', { timeZone }));
       return utcDateTime;
     };
 
