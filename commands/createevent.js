@@ -31,8 +31,8 @@ module.exports = {
   async execute(interaction) {
     const requiredRoles = new Set(['Admins', 'Contributors', 'Proud Guardians']);
     const memberRoles = new Set(interaction.member.roles.cache.map(role => role.name));
-    const roleToMention = 'ROLE_ID_HERE'; // Replace with the actual role ID
-    const notificationChannelId = 'NOTIFICATION_CHANNEL_ID_HERE'; // Replace with the actual channel ID
+    const roleToMention = '861562283921244161'; // Replace with the actual role ID
+    const notificationChannelId = '863436760234065971'; // Replace with the actual channel ID
 
     if (![...requiredRoles].some(role => memberRoles.has(role))) {
       return interaction.reply({ content: 'You do not have the required roles to use this command.', ephemeral: true });
