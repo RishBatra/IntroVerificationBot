@@ -68,7 +68,7 @@ module.exports = {
                             allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory]
                         },
                         {
-                            id: process.env.MOD_ROLE_ID, // Use your mod role ID
+                            id: process.env.MOD_ROLE_ID,
                             allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory]
                         }
                     ]
@@ -80,6 +80,12 @@ module.exports = {
                     channelId: channel.id,
                     type: ticketType
                 });
+
+                try {
+                    await interaction.user.send(`Your ticket has been created in the server: ${guild.name}. You can view it in the channel: ${channel.name}`);
+                } catch (error) {
+                    console.error('Cannot send messages to this user:', error.message);
+                }
 
                 await interaction.reply({ content: `Ticket created in ${channel}.`, ephemeral: true });
 

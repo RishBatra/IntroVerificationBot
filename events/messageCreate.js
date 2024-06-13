@@ -1,11 +1,11 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
+const Ticket = require('../models/ticket');
 
 module.exports = {
     name: 'messageCreate',
     async execute(message) {
-        // Check if the message is from a guild or a DM
         if (message.guild) {
-            // Handle guild messages here (e.g., intro validation)
+            // Handle guild messages
             if (message.channel.name === 'intros') {
                 const { isValid, errors } = validateIntroMessage(message.content);
                 
@@ -13,6 +13,22 @@ module.exports = {
                     await message.reply(`Please correct your introduction:\n${errors.join('\n')}`);
                 } else {
                     // Handle valid introductions if needed
+                }
+            }
+
+            // Assign ticket to mod on first reply
+            if (message.channel.name.includes('-ticket') && !message.author.bot) {
+                const ticket = await Ticket.findOne({ channelId: message.channel.id });
+                if (ticket && !ticket.assignedMod) {
+                    ticket.assignedMod = message.author.username;
+                    await ticket.save();
+
+                    const logChannel = message.guild.channels.cache.find(c => c.name === 'ticket-log');
+                    if (logChannel) {
+                        await logChannel.send(`Ticket in ${message.channel.name} has been assigned to ${message.author.username}.`);
+                    }
+
+                    await message.channel.send(`This ticket is now assigned to ${message.author.username}.`);
                 }
             }
         } else {
@@ -54,5 +70,5 @@ module.exports = {
                 }
             }
         }
-    },
+    }
 };

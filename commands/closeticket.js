@@ -21,6 +21,7 @@ module.exports = {
 
             const logChannel = interaction.guild.channels.cache.find(c => c.name === 'ticket-log');
             const transcriptChannel = interaction.guild.channels.cache.find(c => c.name === 'transcripts');
+            const user = await interaction.client.users.fetch(ticket.userId);
 
             const embed = new EmbedBuilder()
                 .setTitle('Ticket Closed')
@@ -37,6 +38,12 @@ module.exports = {
                 await transcriptChannel.send({ content: `Transcript for ticket opened by ${ticket.username}`, embeds: [embed] });
             } else {
                 console.error('Transcript channel not found');
+            }
+
+            try {
+                await user.send(`Your ticket in the server ${interaction.guild.name} has been closed. Reason: ${reason}`);
+            } catch (error) {
+                console.error('Cannot send messages to this user:', error.message);
             }
 
             await Ticket.deleteOne({ channelId: channel.id });
