@@ -16,15 +16,11 @@ module.exports = {
         .addChannelOption(option =>
             option.setName('channel')
                 .setDescription('The channel for the event (or enter location name)')
-                .setRequired(true))
+                .setRequired(false))
         .addStringOption(option =>
             option.setName('date')
                 .setDescription('The start date of the event (DD:MM:YY, DD/MM/YY, today, tomorrow, this <day of week>, or "17 June")')
                 .setRequired(true))
-        .addStringOption(option =>
-            option.setName('enddate')
-                .setDescription('The end date of the event (DD:MM:YY, DD/MM/YY, today, tomorrow, this <day of week>, or "17 June")')
-                .setRequired(false))
         .addStringOption(option =>
             option.setName('starttime')
                 .setDescription('The start time of the event (HH:MM, HHMM, HH:MMAM/PM, HHMMAM/PM, or HHAM/PM)')
@@ -32,7 +28,11 @@ module.exports = {
         .addStringOption(option =>
             option.setName('endtime')
                 .setDescription('The end time of the event (HH:MM, HHMM, HH:MMAM/PM, HHMMAM/PM, or HHAM/PM)')
-                .setRequired(true)),
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName('enddate')
+                .setDescription('The end date of the event (DD:MM:YY, DD/MM/YY, today, tomorrow, this <day of week>, or "17 June")')
+                .setRequired(false)),
     async execute(interaction) {
         const requiredRoles = new Set(['Admins', 'Contributors', 'Proud Guardians']);
         const memberRoles = new Set(interaction.member.roles.cache.map(role => role.name));
