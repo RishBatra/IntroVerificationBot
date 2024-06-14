@@ -15,12 +15,16 @@ module.exports = {
                 .setRequired(true))
         .addChannelOption(option =>
             option.setName('channel')
-                .setDescription('The channel for the event')
+                .setDescription('The channel for the event (or enter location name)')
                 .setRequired(true))
         .addStringOption(option =>
             option.setName('date')
-                .setDescription('The date of the event (DD:MM:YY, DD/MM/YY, today, tomorrow, or this )')
+                .setDescription('The start date of the event (DD:MM:YY, DD/MM/YY, today, tomorrow, this <day of week>, or "17 June")')
                 .setRequired(true))
+        .addStringOption(option =>
+            option.setName('enddate')
+                .setDescription('The end date of the event (DD:MM:YY, DD/MM/YY, today, tomorrow, this <day of week>, or "17 June")')
+                .setRequired(false))
         .addStringOption(option =>
             option.setName('starttime')
                 .setDescription('The start time of the event (HH:MM, HHMM, HH:MMAM/PM, HHMMAM/PM, or HHAM/PM)')
@@ -41,14 +45,18 @@ module.exports = {
 
         const name = interaction.options.getString('name');
         const description = interaction.options.getString('description');
-        const channel = interaction.options.getChannel('channel');
+        const channelOption = interaction.options.getChannel('channel');
         let date = interaction.options.getString('date').toLowerCase();
+        let endDate = interaction.options.getString('enddate');
         let startTime = interaction.options.getString('starttime');
         let endTime = interaction.options.getString('endtime');
 
-        console.log(`Date: ${date}, Start Time: ${startTime}, End Time: ${endTime}`);
+        const channel = channelOption ? channelOption.id : null;
+        const location = channelOption ? null : interaction.options.getString('channel');
 
-        // Function to parse natural language dates
+        console.log(`Date: ${date}, End Date: ${endDate}, Start Time: ${startTime}, End Time: ${endTime}`);
+
+        // Function to parse natural language dates and dates like "17 June"
         const parseNaturalDate = (input) => {
             const today = new Date();
             let targetDate;
@@ -64,6 +72,9 @@ module.exports = {
                     return null;
                 }
                 targetDate = addDays(today, (targetDay + 7 - today.getDay()) % 7);
+            } else if (input.match(/^\d{1,2} \w+$/)) {
+                const [day, month] = input.split(' ');
+                targetDate = new Date(`${day} ${month} ${today.getFullYear()}`);
             } else {
                 const dateParts = input.split(/[:/]/);
                 if (dateParts.length !== 3) {
@@ -78,10 +89,16 @@ module.exports = {
             return targetDate;
         };
 
-        // Parse date
+        // Parse start date
         const parsedDate = parseNaturalDate(date);
         if (!isValid(parsedDate)) {
-            return interaction.reply({ content: 'Invalid date format. Please use DD:MM:YY, DD/MM/YY, today, tomorrow, or this .', ephemeral: true });
+            return interaction.reply({ content: 'Invalid start date format. Please use DD:MM:YY, DD/MM/YY, today, tomorrow, this <day of week>, or "17 June".', ephemeral: true });
+        }
+
+        // Parse end date
+        const parsedEndDate = endDate ? parseNaturalDate(endDate) : parsedDate;
+        if (!isValid(parsedEndDate)) {
+            return interaction.reply({ content: 'Invalid end date format. Please use DD:MM:YY, DD/MM/YY, today, tomorrow, this <day of week>, or "17 June".', ephemeral: true });
         }
 
         // Handle time format
@@ -132,7 +149,7 @@ module.exports = {
         // Handle endTime being "24:00"
         if (endTime === "24:00") {
             endTime = "00:00";
-            parsedDate = addDays(parsedDate, 1);
+            parsedEndDate = addDays(parsedEndDate, 1);
         }
 
         // Combine date and time
@@ -144,7 +161,7 @@ module.exports = {
         };
 
         const startDateTimeIST = combineDateTime(parsedDate, startTime);
-        const endDateTimeIST = combineDateTime(parsedDate, endTime);
+        const endDateTimeIST = combineDateTime(parsedEndDate, endTime);
         console.log(`Start DateTime IST: ${startDateTimeIST}`);
         console.log(`End DateTime IST: ${endDateTimeIST}`);
         if (!isValid(startDateTimeIST) || !isValid(endDateTimeIST)) {
@@ -178,10 +195,12 @@ module.exports = {
                 scheduledStartTime: startDateTimeUTC.toISOString(),
                 scheduledEndTime: endDateTimeUTC.toISOString(),
                 privacyLevel: 2, // GUILD_ONLY
-                entityType: 2, // VOICE
-                channel: channel.id,
+                entityType: 2, // VOICE if (channel) else 3, // EXTERNAL if location
+                channel: channel,
+                location,
                 description,
             });
+
             const notificationChannel = await interaction.guild.channels.fetch(notificationChannelId);
             const embed = new EmbedBuilder()
                 .setTitle(`New Event Created: ${name}`)
