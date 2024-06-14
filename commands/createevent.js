@@ -147,31 +147,39 @@ module.exports = {
             return result;
         };
 
-        const startDateTime = combineDateTime(parsedDate, startTime);
-        const endDateTime = combineDateTime(parsedDate, endTime);
+        const startDateTimeIST = combineDateTime(parsedDate, startTime);
+        const endDateTimeIST = combineDateTime(parsedDate, endTime);
 
-        console.log(`Start DateTime: ${startDateTime}`);
-        console.log(`End DateTime: ${endDateTime}`);
+        console.log(`Start DateTime IST: ${startDateTimeIST}`);
+        console.log(`End DateTime IST: ${endDateTimeIST}`);
 
-        if (!isValid(startDateTime) || !isValid(endDateTime)) {
+        if (!isValid(startDateTimeIST) || !isValid(endDateTimeIST)) {
             return interaction.reply({ content: 'Invalid date or time format.', ephemeral: true });
         }
 
+        // Convert IST to UTC
+        const timeZone = 'Asia/Kolkata'; // IST time zone
+        const startDateTimeUTC = zonedTimeToUtc(startDateTimeIST, timeZone);
+        const endDateTimeUTC = zonedTimeToUtc(endDateTimeIST, timeZone);
+
+        console.log(`Start DateTime UTC: ${startDateTimeUTC}`);
+        console.log(`End DateTime UTC: ${endDateTimeUTC}`);
+
         // Adjust the dates to ensure they are in the future
         const now = new Date();
-        if (startDateTime <= now || endDateTime <= now) {
+        if (startDateTimeUTC <= now || endDateTimeUTC <= now) {
             return interaction.reply({ content: 'Event times must be in the future.', ephemeral: true });
         }
 
-        if (startDateTime >= endDateTime) {
+        if (startDateTimeUTC >= endDateTimeUTC) {
             return interaction.reply({ content: 'The start time must be before the end time.', ephemeral: true });
         }
 
         try {
             const event = await interaction.guild.scheduledEvents.create({
                 name,
-                scheduledStartTime: startDateTime.toISOString(),
-                scheduledEndTime: endDateTime.toISOString(),
+                scheduledStartTime: startDateTimeUTC.toISOString(),
+                scheduledEndTime: endDateTimeUTC.toISOString(),
                 privacyLevel: 2, // GUILD_ONLY
                 entityType: 2, // VOICE
                 channel: channel.id,
@@ -183,8 +191,8 @@ module.exports = {
                 .setTitle(`New Event Created: ${name}`)
                 .setDescription(description)
                 .addFields(
-                    { name: 'Start Time', value: format(startDateTime, 'yyyy-MM-dd HH:mm:ss'), inline: true },
-                    { name: 'End Time', value: format(endDateTime, 'yyyy-MM-dd HH:mm:ss'), inline: true },
+                    { name: 'Start Time', value: format(startDateTimeIST, 'yyyy-MM-dd HH:mm:ss'), inline: true },
+                    { name: 'End Time', value: format(endDateTimeIST, 'yyyy-MM-dd HH:mm:ss'), inline: true },
                     { name: 'Event Link', value: `[Join Event](${event.url})` }
                 )
                 .setColor('#00FF00')
