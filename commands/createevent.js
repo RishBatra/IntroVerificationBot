@@ -191,8 +191,8 @@ module.exports = {
                 .setTitle(`New Event Created: ${name}`)
                 .setDescription(description)
                 .addFields(
-                    { name: 'Start Time', value: format(startDateTimeIST, 'dd-MM-yyyy HH:mm'), inline: true },
-                    { name: 'End Time', value: format(endDateTimeIST, 'dd-MM-yyyy HH:mm'), inline: true },
+                    { name: 'Start Time', value: format(startDateTimeIST, 'yyyy-MM-dd HH:mm:ss'), inline: true },
+                    { name: 'End Time', value: format(endDateTimeIST, 'yyyy-MM-dd HH:mm:ss'), inline: true },
                     { name: 'Event Link', value: `[Join Event](${event.url})` }
                 )
                 .setColor('#00FF00')
