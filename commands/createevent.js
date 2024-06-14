@@ -52,7 +52,7 @@ module.exports = {
         let endTime = interaction.options.getString('endtime');
 
         const channel = channelOption ? channelOption.id : null;
-        const location = channelOption ? null : interaction.options.getString('channel');
+        const location = !channelOption ? interaction.options.getString('channel') : null;
 
         console.log(`Date: ${date}, End Date: ${endDate}, Start Time: ${startTime}, End Time: ${endTime}`);
 
@@ -207,6 +207,10 @@ module.exports = {
             }
 
             const event = await interaction.guild.scheduledEvents.create(eventData);
+            if (location) {
+                await event.setLocation(location);
+            }
+
             const notificationChannel = await interaction.guild.channels.fetch(notificationChannelId);
             const embed = new EmbedBuilder()
                 .setTitle(`New Event Created: ${name}`)
