@@ -15,7 +15,7 @@ module.exports = {
                 .setRequired(true))
         .addStringOption(option =>
             option.setName('date')
-                .setDescription('The start date of the event (DD:MM:YY, DD/MM/YY, today, tomorrow, this <day of week>, or "17 June")')
+                .setDescription('The start date of the event (DD:MM:YY, DD/MM/YY, today, tomorrow, this , or "17 June")')
                 .setRequired(true))
         .addStringOption(option =>
             option.setName('starttime')
@@ -31,8 +31,9 @@ module.exports = {
                 .setRequired(false))
         .addStringOption(option =>
             option.setName('enddate')
-                .setDescription('The end date of the event (DD:MM:YY, DD/MM/YY, today, tomorrow, this <day of week>, or "17 June")')
+                .setDescription('The end date of the event (DD:MM:YY, DD/MM/YY, today, tomorrow, this , or "17 June")')
                 .setRequired(false)),
+
     async execute(interaction) {
         const requiredRoles = new Set(['Admins', 'Contributors', 'Proud Guardians']);
         const memberRoles = new Set(interaction.member.roles.cache.map(role => role.name));
@@ -50,7 +51,6 @@ module.exports = {
         let endDate = interaction.options.getString('enddate');
         let startTime = interaction.options.getString('starttime');
         let endTime = interaction.options.getString('endtime');
-
         const channel = channelOption ? channelOption.id : null;
         const location = !channelOption ? interaction.options.getString('channel') : null;
 
@@ -92,19 +92,20 @@ module.exports = {
         // Parse start date
         const parsedDate = parseNaturalDate(date);
         if (!isValid(parsedDate)) {
-            return interaction.reply({ content: 'Invalid start date format. Please use DD:MM:YY, DD/MM/YY, today, tomorrow, this <day of week>, or "17 June".', ephemeral: true });
+            return interaction.reply({ content: 'Invalid start date format. Please use DD:MM:YY, DD/MM/YY, today, tomorrow, this , or "17 June".', ephemeral: true });
         }
 
         // Parse end date
         const parsedEndDate = endDate ? parseNaturalDate(endDate) : parsedDate;
         if (!isValid(parsedEndDate)) {
-            return interaction.reply({ content: 'Invalid end date format. Please use DD:MM:YY, DD/MM/YY, today, tomorrow, this <day of week>, or "17 June".', ephemeral: true });
+            return interaction.reply({ content: 'Invalid end date format. Please use DD:MM:YY, DD/MM/YY, today, tomorrow, this , or "17 June".', ephemeral: true });
         }
 
         // Handle time format
         const formatTime = (time) => {
             const meridiemMatch = time.match(/(am|pm)$/i);
             let hours, minutes = '00';
+
             if (meridiemMatch) {
                 const meridiem = meridiemMatch[1].toLowerCase();
                 time = time.slice(0, -2);
@@ -135,6 +136,7 @@ module.exports = {
                 hours = parseInt(hours, 10);
                 minutes = parseInt(minutes, 10);
             }
+
             if (hours < 10) hours = `0${hours}`;
             if (minutes < 10) minutes = `0${minutes}`;
             return `${hours}:${minutes}`;
@@ -164,6 +166,7 @@ module.exports = {
         const endDateTimeIST = combineDateTime(parsedEndDate, endTime);
         console.log(`Start DateTime IST: ${startDateTimeIST}`);
         console.log(`End DateTime IST: ${endDateTimeIST}`);
+
         if (!isValid(startDateTimeIST) || !isValid(endDateTimeIST)) {
             return interaction.reply({ content: 'Invalid date or time format.', ephemeral: true });
         }
@@ -223,10 +226,12 @@ module.exports = {
                 .setColor('#00FF00')
                 .setTimestamp()
                 .setFooter({ text: 'Event created by your friendly bot' });
+
             await notificationChannel.send({
                 content: `<@&${roleToMention}> A new event has been created!`,
                 embeds: [embed],
             });
+
             await interaction.reply(`Created event: ${event.name}`);
         } catch (error) {
             console.error('Error creating event:', error);
