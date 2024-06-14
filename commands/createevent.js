@@ -30,7 +30,6 @@ module.exports = {
             option.setName('endtime')
                 .setDescription('The end time of the event (HH:MM, HHMM, HH:MMAM/PM, HHMMAM/PM, or HHAM/PM)')
                 .setRequired(true)),
-
     async execute(interaction) {
         const requiredRoles = new Set(['Admins', 'Contributors', 'Proud Guardians']);
         const memberRoles = new Set(interaction.member.roles.cache.map(role => role.name));
@@ -90,7 +89,6 @@ module.exports = {
         const formatTime = (time) => {
             const meridiemMatch = time.match(/(am|pm)$/i);
             let hours, minutes = '00';
-
             if (meridiemMatch) {
                 const meridiem = meridiemMatch[1].toLowerCase();
                 time = time.slice(0, -2);
@@ -121,7 +119,6 @@ module.exports = {
                 hours = parseInt(hours, 10);
                 minutes = parseInt(minutes, 10);
             }
-
             if (hours < 10) hours = `0${hours}`;
             if (minutes < 10) minutes = `0${minutes}`;
             return `${hours}:${minutes}`;
@@ -149,10 +146,8 @@ module.exports = {
 
         const startDateTimeIST = combineDateTime(parsedDate, startTime);
         const endDateTimeIST = combineDateTime(parsedDate, endTime);
-
         console.log(`Start DateTime IST: ${startDateTimeIST}`);
         console.log(`End DateTime IST: ${endDateTimeIST}`);
-
         if (!isValid(startDateTimeIST) || !isValid(endDateTimeIST)) {
             return interaction.reply({ content: 'Invalid date or time format.', ephemeral: true });
         }
@@ -161,7 +156,6 @@ module.exports = {
         const timeZone = 'Asia/Kolkata'; // IST time zone
         const startDateTimeUTC = zonedTimeToUtc(startDateTimeIST, timeZone);
         const endDateTimeUTC = zonedTimeToUtc(endDateTimeIST, timeZone);
-
         console.log(`Start DateTime UTC: ${startDateTimeUTC}`);
         console.log(`End DateTime UTC: ${endDateTimeUTC}`);
 
@@ -185,7 +179,6 @@ module.exports = {
                 channel: channel.id,
                 description,
             });
-
             const notificationChannel = await interaction.guild.channels.fetch(notificationChannelId);
             const embed = new EmbedBuilder()
                 .setTitle(`New Event Created: ${name}`)
@@ -198,12 +191,10 @@ module.exports = {
                 .setColor('#00FF00')
                 .setTimestamp()
                 .setFooter({ text: 'Event created by your friendly bot' });
-
             await notificationChannel.send({
                 content: `<@&${roleToMention}> A new event has been created!`,
                 embeds: [embed],
             });
-
             await interaction.reply(`Created event: ${event.name}`);
         } catch (error) {
             console.error('Error creating event:', error);
