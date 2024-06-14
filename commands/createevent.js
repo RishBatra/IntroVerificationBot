@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { parse, format, addDays, isValid, setHours, setMinutes } = require('date-fns');
+const { parse, format, addDays, isValid } = require('date-fns');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -13,10 +13,6 @@ module.exports = {
             option.setName('description')
                 .setDescription('The description of the event')
                 .setRequired(true))
-        .addChannelOption(option =>
-            option.setName('channel')
-                .setDescription('The channel for the event (or enter location name)')
-                .setRequired(false))
         .addStringOption(option =>
             option.setName('date')
                 .setDescription('The start date of the event (DD:MM:YY, DD/MM/YY, today, tomorrow, this <day of week>, or "17 June")')
@@ -29,6 +25,10 @@ module.exports = {
             option.setName('endtime')
                 .setDescription('The end time of the event (HH:MM, HHMM, HH:MMAM/PM, HHMMAM/PM, or HHAM/PM)')
                 .setRequired(true))
+        .addChannelOption(option =>
+            option.setName('channel')
+                .setDescription('The channel for the event (or enter location name)')
+                .setRequired(false))
         .addStringOption(option =>
             option.setName('enddate')
                 .setDescription('The end date of the event (DD:MM:YY, DD/MM/YY, today, tomorrow, this <day of week>, or "17 June")')
