@@ -2,6 +2,8 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { parse, format, addDays, isValid, setHours, setMinutes } = require('date-fns');
 const { zonedTimeToUtc, utcToZonedTime } = require('date-fns-tz');
 
+console.log('zonedTimeToUtc:', zonedTimeToUtc); // Debugging statement
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('createevent')
