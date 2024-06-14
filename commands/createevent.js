@@ -1,8 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { parse, format, addDays, isValid, setHours, setMinutes } = require('date-fns');
-const { zonedTimeToUtc, utcToZonedTime } = require('date-fns-tz');
-
-console.log('zonedTimeToUtc:', zonedTimeToUtc); // Debugging statement
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -155,9 +152,13 @@ module.exports = {
         }
 
         // Convert IST to UTC
-        const timeZone = 'Asia/Kolkata'; // IST time zone
-        const startDateTimeUTC = zonedTimeToUtc(startDateTimeIST, timeZone);
-        const endDateTimeUTC = zonedTimeToUtc(endDateTimeIST, timeZone);
+        const convertISTtoUTC = (date) => {
+            const utcDate = new Date(date.getTime() - (5 * 60 + 30) * 60000); // Subtract 5 hours and 30 minutes
+            return utcDate;
+        };
+
+        const startDateTimeUTC = convertISTtoUTC(startDateTimeIST);
+        const endDateTimeUTC = convertISTtoUTC(endDateTimeIST);
         console.log(`Start DateTime UTC: ${startDateTimeUTC}`);
         console.log(`End DateTime UTC: ${endDateTimeUTC}`);
 
