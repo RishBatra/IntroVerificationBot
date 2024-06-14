@@ -190,17 +190,23 @@ module.exports = {
         }
 
         try {
-            const event = await interaction.guild.scheduledEvents.create({
+            const eventData = {
                 name,
                 scheduledStartTime: startDateTimeUTC.toISOString(),
                 scheduledEndTime: endDateTimeUTC.toISOString(),
                 privacyLevel: 2, // GUILD_ONLY
-                entityType: 2, // VOICE if (channel) else 3, // EXTERNAL if location
-                channel: channel,
-                location,
                 description,
-            });
+            };
 
+            if (channel) {
+                eventData.entityType = 2; // VOICE
+                eventData.channel = channel;
+            } else {
+                eventData.entityType = 3; // EXTERNAL
+                eventData.entityMetadata = { location };
+            }
+
+            const event = await interaction.guild.scheduledEvents.create(eventData);
             const notificationChannel = await interaction.guild.channels.fetch(notificationChannelId);
             const embed = new EmbedBuilder()
                 .setTitle(`New Event Created: ${name}`)
