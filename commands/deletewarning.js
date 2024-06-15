@@ -20,7 +20,7 @@ module.exports = {
     }
 
     const options = userWarnings.warnings.map((warning, index) => ({
-      label: `Warning ${index + 1}: ${warning.reason}`,
+      label: `Warning ${index + 1}: ${warning.reason.length > 80 ? `${warning.reason.substring(0, 77)}...` : warning.reason}`,
       value: warning._id.toString(),
     }));
 
