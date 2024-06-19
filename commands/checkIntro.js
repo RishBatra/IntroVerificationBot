@@ -11,12 +11,21 @@ module.exports = {
                 .setRequired(true)
         ),
     async execute(interaction) {
-        const introsChannelId = '692965776545546261'; // Replace with your #intros channel ID
+        const introsChannelName = 'intros'; // Replace with your #intros channel name
         const targetUser = interaction.options.getUser('target');
-        const introsChannel = interaction.guild.channels.cache.get(introsChannelId);
+        const introsChannel = interaction.guild.channels.cache.find(channel => channel.name === introsChannelName && channel.type === 'GUILD_TEXT');
 
-        if (!introsChannel || introsChannel.type !== 'GUILD_TEXT') {
-            return interaction.reply('The intros channel was not found or is not a text channel.');
+        // Logging for debugging
+        console.log(`Looking for channel with name: ${introsChannelName}`);
+        if (!introsChannel) {
+            console.error('Channel not found');
+            return interaction.reply('The intros channel was not found.');
+        }
+
+        console.log(`Found channel: ${introsChannel.name} with type: ${introsChannel.type}`);
+        if (introsChannel.type !== 'GUILD_TEXT') {
+            console.error('Channel is not a text channel');
+            return interaction.reply('The intros channel is not a text channel.');
         }
 
         try {
