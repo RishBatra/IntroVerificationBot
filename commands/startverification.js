@@ -53,11 +53,10 @@ module.exports = {
                 reason: 'Verification process',
             });
 
-            // Delete the initial system message
-            const messages = await verificationHelpChannel.messages.fetch({ limit: 10 });
-            const threadCreationMessage = messages.find(msg => msg.system && msg.type === 'THREAD_CREATED');
-            if (threadCreationMessage) {
-                await threadCreationMessage.delete();
+            // Fetch and delete the initial system message
+            const starterMessage = await thread.fetchStarterMessage();
+            if (starterMessage && starterMessage.system) {
+                await starterMessage.delete();
             }
 
             await thread.members.add(targetUser.id);
