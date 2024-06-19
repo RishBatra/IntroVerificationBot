@@ -32,6 +32,8 @@ module.exports = {
         }
 
         console.log(`Found channel: ${introsChannel.name} with type: ${introsChannel.type}`);
+        console.log(`Channel details:`, introsChannel);
+
         if (introsChannel.type !== 'GUILD_TEXT') {
             console.error('Channel is not a text channel');
             return interaction.reply('The intros channel is not a text channel.');
