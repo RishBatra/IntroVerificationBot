@@ -34,9 +34,12 @@ module.exports = {
         console.log(`Found channel: ${introsChannel.name} with type: ${introsChannel.type}`);
         console.log(`Channel details:`, introsChannel);
 
-        if (introsChannel.type !== 'GUILD_TEXT') {
-            console.error('Channel is not a text channel');
-            return interaction.reply('The intros channel is not a text channel.');
+        // Check permissions
+        const botMember = guild.members.cache.get(interaction.client.user.id);
+        if (!botMember.permissionsIn(introsChannel).has(Permissions.FLAGS.VIEW_CHANNEL) || 
+            !botMember.permissionsIn(introsChannel).has(Permissions.FLAGS.READ_MESSAGE_HISTORY)) {
+            console.error('Bot does not have necessary permissions');
+            return interaction.reply('The bot does not have the necessary permissions to read the intros channel.');
         }
 
         try {
