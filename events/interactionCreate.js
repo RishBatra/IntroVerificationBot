@@ -82,12 +82,12 @@ module.exports = {
                 });
 
                 try {
-                    await interaction.user.send(`Your ticket has been created in the server: ${guild.name}. You can view it in the channel: ${channel.name}`);
+                    await interaction.user.send(`Your ticket has been created in the server. A moderator will assist you shortly.`);
                 } catch (error) {
                     console.error('Cannot send messages to this user:', error.message);
                 }
 
-                await interaction.reply({ content: `Ticket created in ${channel}.`, ephemeral: true });
+                await interaction.reply({ content: `Ticket created successfully.`, ephemeral: true });
 
                 const embed = new EmbedBuilder()
                     .setTitle('New Ticket')

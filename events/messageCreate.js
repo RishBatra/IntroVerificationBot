@@ -1,9 +1,9 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsBitField } = require('discord.js');
+const Ticket = require('../models/ticket');
 
 module.exports = {
     name: 'messageCreate',
     async execute(message) {
-        // Check if the message is from a guild or a DM
         if (message.guild) {
             handleGuildMessage(message);
         } else {
@@ -21,13 +21,26 @@ async function handleGuildMessage(message) {
         } else {
             // Handle valid introductions if needed
         }
+    } else if (message.channel.parent && message.channel.parent.name === 'talktomods') {
+        // Check if the message is from an admin in a ticket channel
+        if (message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+            const ticket = await Ticket.findOne({ channelId: message.channel.id });
+            if (ticket) {
+                const user = await message.client.users.fetch(ticket.userId);
+                try {
+                    await user.send(`An admin responded to your ticket: ${message.content}`);
+                } catch (error) {
+                    console.error('Cannot send messages to this user:', error.message);
+                }
+            }
+        }
     }
 }
 
 async function handleDM(message) {
-    console.log('Received a DM:', message.content); // Debugging log
+    console.log('Received a DM:', message.content);
 
-    const guild = message.client.guilds.cache.get(process.env.GUILD_ID); // Use your guild ID
+    const guild = message.client.guilds.cache.get(process.env.GUILD_ID);
     if (!guild) {
         console.error('Guild not found. Please check your GUILD_ID.');
         return;
@@ -54,7 +67,7 @@ async function handleDM(message) {
 
     try {
         await message.author.send({ embeds: [embed], components: [row] });
-        console.log('DM sent successfully.'); // Debugging log
+        console.log('DM sent successfully.');
     } catch (error) {
         handleError(error);
     }
@@ -69,9 +82,29 @@ function handleError(error) {
 }
 
 function validateIntroMessage(content) {
-    // Validation logic for intro messages
     const errors = [];
-    const isValid = true; // Replace with actual validation logic
+    let isValid = true;
+
+    // Check if the message is at least 50 characters long
+    if (content.length < 50) {
+        errors.push('Your introduction should be at least 50 characters long.');
+        isValid = false;
+    }
+
+    // Check if the message contains at least 3 sentences
+    const sentences = content.split(/[.!?]+/).filter(sentence => sentence.trim().length > 0);
+    if (sentences.length < 3) {
+        errors.push('Your introduction should contain at least 3 sentences.');
+        isValid = false;
+    }
+
+    // Check if the message includes some key information (you can customize this)
+    const keyWords = ['name', 'age', 'hobby', 'from'];
+    const missingInfo = keyWords.filter(word => !content.toLowerCase().includes(word));
+    if (missingInfo.length > 0) {
+        errors.push(`Please include information about your ${missingInfo.join(', ')}.`);
+        isValid = false;
+    }
 
     return { isValid, errors };
 }
