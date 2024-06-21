@@ -4,6 +4,15 @@ const Ticket = require('../models/ticket');
 module.exports = {
     name: 'messageCreate',
     async execute(message) {
+        if (message.author.bot) {
+            // Ignore messages from bots, unless it's a closing message
+            if (message.content.toLowerCase().includes('ticket closed')) {
+                // Handle ticket closing logic here
+                console.log('Ticket closed:', message.content);
+            }
+            return;
+        }
+
         if (message.guild) {
             handleGuildMessage(message);
         } else {
@@ -21,55 +30,61 @@ async function handleGuildMessage(message) {
         } else {
             // Handle valid introductions if needed
         }
-    } else if (message.channel.parent && message.channel.parent.name === 'talktomods') {
-        // Check if the message is from an admin in a ticket channel
-        if (message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-            const ticket = await Ticket.findOne({ channelId: message.channel.id });
-            if (ticket) {
-                const user = await message.client.users.fetch(ticket.userId);
-                try {
-                    await user.send(`An admin responded to your ticket: ${message.content}`);
-                } catch (error) {
-                    console.error('Cannot send messages to this user:', error.message);
-                }
-            }
-        }
     }
 }
 
 async function handleDM(message) {
     console.log('Received a DM:', message.content);
 
-    const guild = message.client.guilds.cache.get(process.env.GUILD_ID);
-    if (!guild) {
-        console.error('Guild not found. Please check your GUILD_ID.');
-        return;
-    }
+    const ticket = await Ticket.findOne({ userId: message.author.id, status: 'open' });
 
-    const serverAvatar = guild.iconURL();
+    if (ticket) {
+        // Forward the DM to the ticket channel
+        const guild = message.client.guilds.cache.get(process.env.GUILD_ID);
+        const ticketChannel = guild.channels.cache.get(ticket.channelId);
 
-    const embed = new EmbedBuilder()
-        .setTitle(`Open a ticket in ${guild.name}`)
-        .setDescription('Do you want to open a ticket?')
-        .setThumbnail(serverAvatar)
-        .setColor(0x00AE86);
+        if (ticketChannel) {
+            const embed = new EmbedBuilder()
+                .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
+                .setDescription(message.content)
+                .setColor(0x00AE86)
+                .setTimestamp();
 
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId('ticket_yes')
-            .setLabel('✅ Yes')
-            .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-            .setCustomId('ticket_no')
-            .setLabel('❌ No')
-            .setStyle(ButtonStyle.Danger)
-    );
+            await ticketChannel.send({ embeds: [embed] });
+        }
+    } else {
+        // If no open ticket, offer to create one
+        const guild = message.client.guilds.cache.get(process.env.GUILD_ID);
+        if (!guild) {
+            console.error('Guild not found. Please check your GUILD_ID.');
+            return;
+        }
 
-    try {
-        await message.author.send({ embeds: [embed], components: [row] });
-        console.log('DM sent successfully.');
-    } catch (error) {
-        handleError(error);
+        const serverAvatar = guild.iconURL();
+
+        const embed = new EmbedBuilder()
+            .setTitle(`Open a ticket in ${guild.name}`)
+            .setDescription('Do you want to open a ticket?')
+            .setThumbnail(serverAvatar)
+            .setColor(0x00AE86);
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('ticket_yes')
+                .setLabel('✅ Yes')
+                .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId('ticket_no')
+                .setLabel('❌ No')
+                .setStyle(ButtonStyle.Danger)
+        );
+
+        try {
+            await message.author.send({ embeds: [embed], components: [row] });
+            console.log('DM sent successfully.');
+        } catch (error) {
+            handleError(error);
+        }
     }
 }
 
@@ -85,20 +100,17 @@ function validateIntroMessage(content) {
     const errors = [];
     let isValid = true;
 
-    // Check if the message is at least 50 characters long
     if (content.length < 50) {
         errors.push('Your introduction should be at least 50 characters long.');
         isValid = false;
     }
 
-    // Check if the message contains at least 3 sentences
     const sentences = content.split(/[.!?]+/).filter(sentence => sentence.trim().length > 0);
     if (sentences.length < 3) {
         errors.push('Your introduction should contain at least 3 sentences.');
         isValid = false;
     }
 
-    // Check if the message includes some key information (you can customize this)
     const keyWords = ['name', 'age', 'hobby', 'from'];
     const missingInfo = keyWords.filter(word => !content.toLowerCase().includes(word));
     if (missingInfo.length > 0) {
