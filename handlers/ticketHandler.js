@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionsBitField } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits } = require('discord.js');
 const Ticket = require('../models/ticket');
 
 async function handleTicket(message) {
@@ -31,7 +31,7 @@ async function forwardDMToTicket(message, ticket) {
     let ticketChannel = guild.channels.cache.get(ticket.channelId);
     if (!ticketChannel) {
         console.log('Ticket channel not found, creating a new one.');
-        let category = guild.channels.cache.find(c => c.name == "talktomods" && c.type == ChannelType.GuildCategory);
+        let category = guild.channels.cache.find(c => c.name === 'talktomods' && c.type === ChannelType.GuildCategory);
         if (!category) {
             console.log('Ticket category does not exist, creating one.');
             category = await guild.channels.create({
@@ -40,7 +40,7 @@ async function forwardDMToTicket(message, ticket) {
                 permissionOverwrites: [
                     {
                         id: guild.roles.everyone,
-                        deny: [PermissionsBitField.Flags.ViewChannel],
+                        deny: [PermissionFlagsBits.ViewChannel],
                     },
                 ],
             });
@@ -53,11 +53,15 @@ async function forwardDMToTicket(message, ticket) {
             permissionOverwrites: [
                 {
                     id: guild.roles.everyone,
-                    deny: [PermissionsBitField.Flags.ViewChannel],
+                    deny: [PermissionFlagsBits.ViewChannel],
                 },
                 {
                     id: message.author.id,
-                    allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+                    allow: [
+                        PermissionFlagsBits.ViewChannel,
+                        PermissionFlagsBits.SendMessages,
+                        PermissionFlagsBits.ReadMessageHistory
+                    ],
                 },
             ],
         });
@@ -122,7 +126,7 @@ async function offerToCreateTicket(message) {
 async function handleTicketCreation(interaction) {
     console.log('handleTicketCreation called');
     const guild = interaction.guild;
-    let category = guild.channels.cache.find(c => c.name == "talktomods" && c.type == ChannelType.GuildCategory);
+    let category = guild.channels.cache.find(c => c.name === 'talktomods' && c.type === ChannelType.GuildCategory);
     if (!category) {
         console.log('Ticket category does not exist, creating one.');
         category = await guild.channels.create({
@@ -131,7 +135,7 @@ async function handleTicketCreation(interaction) {
             permissionOverwrites: [
                 {
                     id: guild.roles.everyone,
-                    deny: [PermissionsBitField.Flags.ViewChannel],
+                    deny: [PermissionFlagsBits.ViewChannel],
                 },
             ],
         });
@@ -144,11 +148,15 @@ async function handleTicketCreation(interaction) {
         permissionOverwrites: [
             {
                 id: guild.roles.everyone,
-                deny: [PermissionsBitField.Flags.ViewChannel],
+                deny: [PermissionFlagsBits.ViewChannel],
             },
             {
                 id: interaction.user.id,
-                allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+                allow: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.SendMessages,
+                    PermissionFlagsBits.ReadMessageHistory
+                ],
             },
         ],
     });
