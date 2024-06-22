@@ -31,11 +31,11 @@ async function forwardDMToTicket(message, ticket) {
     let ticketChannel = guild.channels.cache.get(ticket.channelId);
     if (!ticketChannel) {
         console.log('Ticket channel not found, creating a new one.');
-        let category = guild.channels.cache.find(c => c.name == "Tickets" && c.type == ChannelType.GuildCategory);
+        let category = guild.channels.cache.find(c => c.name == "talktomods" && c.type == ChannelType.GuildCategory);
         if (!category) {
             console.log('Ticket category does not exist, creating one.');
             category = await guild.channels.create({
-                name: 'Tickets',
+                name: 'talktomods',
                 type: ChannelType.GuildCategory,
                 permissionOverwrites: [
                     {
@@ -122,11 +122,11 @@ async function offerToCreateTicket(message) {
 async function handleTicketCreation(interaction) {
     console.log('handleTicketCreation called');
     const guild = interaction.guild;
-    let category = guild.channels.cache.find(c => c.name == "Tickets" && c.type == ChannelType.GuildCategory);
+    let category = guild.channels.cache.find(c => c.name == "talktomods" && c.type == ChannelType.GuildCategory);
     if (!category) {
         console.log('Ticket category does not exist, creating one.');
         category = await guild.channels.create({
-            name: 'Tickets',
+            name: 'talktomods',
             type: ChannelType.GuildCategory,
             permissionOverwrites: [
                 {

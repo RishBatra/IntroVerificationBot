@@ -1,5 +1,6 @@
 const { Events } = require('discord.js');
 const { handleTicketCreation, handleTicketTypeSelection } = require('../handlers/ticketHandler');
+const Ticket = require('../models/ticket');
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -33,4 +34,23 @@ module.exports = {
             }
         }
     },
+};
+
+module.exports.messageCreate = async (message) => {
+    if (message.channel.type === 'DM' && !message.author.bot) {
+        console.log(`Received message: "${message.content}" in channel type: ${message.channel.type}`);
+        await handleTicket(message);
+    } else if (message.channel.type === 'GUILD_TEXT' && !message.author.bot) {
+        const ticket = await Ticket.findOne({ channelId: message.channel.id, status: 'open' });
+        if (ticket) {
+            const user = await message.client.users.fetch(ticket.userId);
+            if (user) {
+                try {
+                    await user.send(`Mod response in ticket: ${message.content}`);
+                } catch (error) {
+                    console.error('Error sending message to user:', error);
+                }
+            }
+        }
+    }
 };
