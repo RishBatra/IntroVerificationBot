@@ -31,7 +31,7 @@ async function forwardDMToTicket(message, ticket) {
     let ticketChannel = guild.channels.cache.get(ticket.channelId);
     if (!ticketChannel) {
         console.log('Ticket channel not found, creating a new one.');
-        const category = guild.channels.cache.find(c => c.name == "Tickets" && c.type == ChannelType.GuildCategory);
+        const category = guild.channels.cache.find(c => c.name == "talktomods" && c.type == ChannelType.GuildCategory);
         if (!category) {
             console.log('Ticket category channel does not exist!');
             return;
