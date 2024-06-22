@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionsBitField, StringSelectMenuBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionsBitField } = require('discord.js');
 const Ticket = require('../models/ticket');
 
 async function handleTicket(message) {
@@ -77,8 +77,6 @@ async function offerToCreateTicket(message) {
 
 async function handleTicketCreation(interaction) {
     console.log('handleTicketCreation called');
-    // Your ticket creation logic here
-    // For example:
     const guild = interaction.guild;
     const category = guild.channels.cache.find(c => c.name == "Tickets" && c.type == ChannelType.GuildCategory);
     if (!category) return interaction.reply({ content: 'Ticket category channel does not exist!', ephemeral: true });
@@ -100,6 +98,12 @@ async function handleTicketCreation(interaction) {
 
     await ticketChannel.send(`Welcome ${interaction.user}, a team member will assist you shortly.`);
     interaction.reply({ content: `Ticket created: ${ticketChannel}`, ephemeral: true });
+}
+
+async function handleTicketTypeSelection(interaction) {
+    console.log('handleTicketTypeSelection called');
+    const selectedValue = interaction.values[0];
+    await interaction.reply({ content: `You selected: ${selectedValue}`, ephemeral: true });
 }
 
 function handleError(error) {
