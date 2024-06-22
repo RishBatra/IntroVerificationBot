@@ -22,21 +22,56 @@ async function handleTicket(message) {
 async function forwardDMToTicket(message, ticket) {
     console.log('forwardDMToTicket called');
     const guild = message.client.guilds.cache.get(process.env.GUILD_ID);
-    console.log('Guild:', guild ? guild.name : 'Not found');
-    const ticketChannel = guild.channels.cache.get(ticket.channelId);
-    console.log('Ticket channel:', ticketChannel ? ticketChannel.name : 'Not found');
+    if (!guild) {
+        console.log('Guild not found. Please check your GUILD_ID.');
+        return;
+    }
+    console.log('Guild:', guild.name);
 
-    if (ticketChannel) {
-        const embed = new EmbedBuilder()
-            .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
-            .setDescription(message.content)
-            .setColor(0x00AE86)
-            .setTimestamp();
+    let ticketChannel = guild.channels.cache.get(ticket.channelId);
+    if (!ticketChannel) {
+        console.log('Ticket channel not found, creating a new one.');
+        const category = guild.channels.cache.find(c => c.name == "Tickets" && c.type == ChannelType.GuildCategory);
+        if (!category) {
+            console.log('Ticket category channel does not exist!');
+            return;
+        }
 
+        ticketChannel = await guild.channels.create(`ticket-${message.author.username}`, {
+            type: ChannelType.GuildText,
+            parent: category.id,
+            permissionOverwrites: [
+                {
+                    id: guild.roles.everyone,
+                    deny: [PermissionsBitField.Flags.ViewChannel],
+                },
+                {
+                    id: message.author.id,
+                    allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+                },
+            ],
+        });
+
+        // Update the ticket with the new channel ID
+        ticket.channelId = ticketChannel.id;
+        await ticket.save();
+
+        console.log('New ticket channel created:', ticketChannel.name);
+    } else {
+        console.log('Ticket channel found:', ticketChannel.name);
+    }
+
+    const embed = new EmbedBuilder()
+        .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
+        .setDescription(message.content)
+        .setColor(0x00AE86)
+        .setTimestamp();
+
+    try {
         await ticketChannel.send({ embeds: [embed] });
         console.log('Message forwarded to ticket channel');
-    } else {
-        console.log('Ticket channel not found');
+    } catch (error) {
+        console.error('Error forwarding message to ticket channel:', error);
     }
 }
 
@@ -49,7 +84,6 @@ async function offerToCreateTicket(message) {
     }
 
     const serverAvatar = guild.iconURL();
-
     const embed = new EmbedBuilder()
         .setTitle(`Open a ticket in ${guild.name}`)
         .setDescription('Do you want to open a ticket?')
