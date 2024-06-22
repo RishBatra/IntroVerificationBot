@@ -31,13 +31,23 @@ async function forwardDMToTicket(message, ticket) {
     let ticketChannel = guild.channels.cache.get(ticket.channelId);
     if (!ticketChannel) {
         console.log('Ticket channel not found, creating a new one.');
-        const category = guild.channels.cache.find(c => c.name == "talktomods" && c.type == ChannelType.GuildCategory);
+        let category = guild.channels.cache.find(c => c.name == "Tickets" && c.type == ChannelType.GuildCategory);
         if (!category) {
-            console.log('Ticket category channel does not exist!');
-            return;
+            console.log('Ticket category does not exist, creating one.');
+            category = await guild.channels.create({
+                name: 'Tickets',
+                type: ChannelType.GuildCategory,
+                permissionOverwrites: [
+                    {
+                        id: guild.roles.everyone,
+                        deny: [PermissionsBitField.Flags.ViewChannel],
+                    },
+                ],
+            });
         }
 
-        ticketChannel = await guild.channels.create(`ticket-${message.author.username}`, {
+        ticketChannel = await guild.channels.create({
+            name: `ticket-${message.author.username}`,
             type: ChannelType.GuildText,
             parent: category.id,
             permissionOverwrites: [
@@ -112,10 +122,23 @@ async function offerToCreateTicket(message) {
 async function handleTicketCreation(interaction) {
     console.log('handleTicketCreation called');
     const guild = interaction.guild;
-    const category = guild.channels.cache.find(c => c.name == "Tickets" && c.type == ChannelType.GuildCategory);
-    if (!category) return interaction.reply({ content: 'Ticket category channel does not exist!', ephemeral: true });
+    let category = guild.channels.cache.find(c => c.name == "Tickets" && c.type == ChannelType.GuildCategory);
+    if (!category) {
+        console.log('Ticket category does not exist, creating one.');
+        category = await guild.channels.create({
+            name: 'Tickets',
+            type: ChannelType.GuildCategory,
+            permissionOverwrites: [
+                {
+                    id: guild.roles.everyone,
+                    deny: [PermissionsBitField.Flags.ViewChannel],
+                },
+            ],
+        });
+    }
 
-    const ticketChannel = await guild.channels.create(`ticket-${interaction.user.username}`, {
+    const ticketChannel = await guild.channels.create({
+        name: `ticket-${interaction.user.username}`,
         type: ChannelType.GuildText,
         parent: category.id,
         permissionOverwrites: [
