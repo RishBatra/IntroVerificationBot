@@ -1,20 +1,23 @@
+const { SlashCommandBuilder } = require('@discordjs/builders');
 const { MessageEmbed } = require('discord.js');
 
 module.exports = {
-    name: 'checkverified',
-    description: 'List members with only the verified role',
-    async execute(message, args) {
+    data: new SlashCommandBuilder()
+        .setName('checkverified')
+        .setDescription('List members with only the verified role'),
+    
+    async execute(interaction) {
         const VERIFIED_ROLE_NAME = 'verified'; // Replace with the name of your verified role
-        const guild = message.guild;
+        const guild = interaction.guild;
 
         if (!guild) {
-            message.reply('This command can only be used in a server.');
+            await interaction.reply('This command can only be used in a server.');
             return;
         }
 
         const verifiedRole = guild.roles.cache.find(role => role.name === VERIFIED_ROLE_NAME);
         if (!verifiedRole) {
-            message.reply(`Verified role not found.`);
+            await interaction.reply(`Verified role not found.`);
             console.log('Verified role not found.');
             return;
         }
@@ -39,10 +42,10 @@ module.exports = {
                 .setDescription(membersWithOnlyVerifiedRole.map(member => `${member.user.tag} (<@${member.user.id}>)`).join('\n'))
                 .setColor('#00FF00'); // You can customize the color
 
-            message.channel.send({ embeds: [embed] });
+            await interaction.reply({ embeds: [embed] });
             console.log(`Listed ${membersWithOnlyVerifiedRole.length} members with only the verified role.`);
         } else {
-            message.channel.send(`No members found with only the "${VERIFIED_ROLE_NAME}" role.`);
+            await interaction.reply(`No members found with only the "${VERIFIED_ROLE_NAME}" role.`);
             console.log(`No members found with only the verified role.`);
         }
     },
