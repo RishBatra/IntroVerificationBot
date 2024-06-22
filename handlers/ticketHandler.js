@@ -126,6 +126,11 @@ async function offerToCreateTicket(message) {
 async function handleTicketCreation(interaction) {
     console.log('handleTicketCreation called');
     const guild = interaction.guild;
+    if (!guild) {
+        console.error('Guild not found. This interaction is not associated with a guild.');
+        return;
+    }
+
     let category = guild.channels.cache.find(c => c.name === 'talktomods' && c.type === ChannelType.GuildCategory);
     if (!category) {
         console.log('Ticket category does not exist, creating one.');
