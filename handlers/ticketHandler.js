@@ -75,7 +75,32 @@ async function offerToCreateTicket(message) {
     }
 }
 
-// ... rest of the code remains the same ...
+async function handleTicketCreation(interaction) {
+    console.log('handleTicketCreation called');
+    // Your ticket creation logic here
+    // For example:
+    const guild = interaction.guild;
+    const category = guild.channels.cache.find(c => c.name == "Tickets" && c.type == ChannelType.GuildCategory);
+    if (!category) return interaction.reply({ content: 'Ticket category channel does not exist!', ephemeral: true });
+
+    const ticketChannel = await guild.channels.create(`ticket-${interaction.user.username}`, {
+        type: ChannelType.GuildText,
+        parent: category.id,
+        permissionOverwrites: [
+            {
+                id: guild.roles.everyone,
+                deny: [PermissionsBitField.Flags.ViewChannel],
+            },
+            {
+                id: interaction.user.id,
+                allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+            },
+        ],
+    });
+
+    await ticketChannel.send(`Welcome ${interaction.user}, a team member will assist you shortly.`);
+    interaction.reply({ content: `Ticket created: ${ticketChannel}`, ephemeral: true });
+}
 
 function handleError(error) {
     if (error.code === 50007) {
