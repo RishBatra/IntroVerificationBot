@@ -1,5 +1,5 @@
-const introHandler = require('../handlers/introHandler');
-const ticketHandler = require('../handlers/ticketHandler');
+const handleIntro = require('../handlers/introHandler');
+const { handleTicket } = require('../handlers/ticketHandler');
 
 module.exports = {
     name: 'messageCreate',
@@ -13,10 +13,10 @@ module.exports = {
 
         if (message.guild) {
             if (message.channel.name === 'intros') {
-                await introHandler(message);
+                await handleIntro(message);
             }
         } else {
-            await ticketHandler(message);
+            await handleTicket(message);
         }
     },
 };
