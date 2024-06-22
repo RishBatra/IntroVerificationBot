@@ -96,27 +96,27 @@ function handleError(error) {
     }
 }
 
-function validateIntroMessage(content) {
-    const errors = [];
-    let isValid = true;
+// function validateIntroMessage(content) {
+//     const errors = [];
+//     let isValid = true;
 
-    if (content.length < 50) {
-        errors.push('Your introduction should be at least 50 characters long.');
-        isValid = false;
-    }
+//     if (content.length < 50) {
+//         errors.push('Your introduction should be at least 50 characters long.');
+//         isValid = false;
+//     }
 
-    const sentences = content.split(/[.!?]+/).filter(sentence => sentence.trim().length > 0);
-    if (sentences.length < 3) {
-        errors.push('Your introduction should contain at least 3 sentences.');
-        isValid = false;
-    }
+//     const sentences = content.split(/[.!?]+/).filter(sentence => sentence.trim().length > 0);
+//     if (sentences.length < 3) {
+//         errors.push('Your introduction should contain at least 3 sentences.');
+//         isValid = false;
+//     }
 
-    const keyWords = ['name', 'age', 'hobby', 'from'];
-    const missingInfo = keyWords.filter(word => !content.toLowerCase().includes(word));
-    if (missingInfo.length > 0) {
-        errors.push(`Please include information about your ${missingInfo.join(', ')}.`);
-        isValid = false;
-    }
+//     const keyWords = ['name', 'age', 'hobby', 'from'];
+//     const missingInfo = keyWords.filter(word => !content.toLowerCase().includes(word));
+//     if (missingInfo.length > 0) {
+//         errors.push(`Please include information about your ${missingInfo.join(', ')}.`);
+//         isValid = false;
+//     }
 
-    return { isValid, errors };
-}
+//     return { isValid, errors };
+// }
