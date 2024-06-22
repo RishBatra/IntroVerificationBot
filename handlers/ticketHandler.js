@@ -1,7 +1,64 @@
-const { ChannelType, PermissionsBitField, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionsBitField, StringSelectMenuBuilder } = require('discord.js');
 const Ticket = require('../models/ticket');
 
-// ... existing code ...
+async function handleTicket(message) {
+    const ticket = await Ticket.findOne({ userId: message.author.id, status: 'open' });
+
+    if (ticket) {
+        await forwardDMToTicket(message, ticket);
+    } else {
+        await offerToCreateTicket(message);
+    }
+}
+
+async function forwardDMToTicket(message, ticket) {
+    const guild = message.client.guilds.cache.get(process.env.GUILD_ID);
+    const ticketChannel = guild.channels.cache.get(ticket.channelId);
+
+    if (ticketChannel) {
+        const embed = new EmbedBuilder()
+            .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
+            .setDescription(message.content)
+            .setColor(0x00AE86)
+            .setTimestamp();
+
+        await ticketChannel.send({ embeds: [embed] });
+    }
+}
+
+async function offerToCreateTicket(message) {
+    const guild = message.client.guilds.cache.get(process.env.GUILD_ID);
+    if (!guild) {
+        console.error('Guild not found. Please check your GUILD_ID.');
+        return;
+    }
+
+    const serverAvatar = guild.iconURL();
+
+    const embed = new EmbedBuilder()
+        .setTitle(`Open a ticket in ${guild.name}`)
+        .setDescription('Do you want to open a ticket?')
+        .setThumbnail(serverAvatar)
+        .setColor(0x00AE86);
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('ticket_yes')
+            .setLabel('✅ Yes')
+            .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+            .setCustomId('ticket_no')
+            .setLabel('❌ No')
+            .setStyle(ButtonStyle.Danger)
+    );
+
+    try {
+        await message.author.send({ embeds: [embed], components: [row] });
+        console.log('DM sent successfully.');
+    } catch (error) {
+        handleError(error);
+    }
+}
 
 async function handleTicketCreation(interaction) {
     if (interaction.customId === 'ticket_yes') {
@@ -76,6 +133,14 @@ async function handleTicketTypeSelection(interaction) {
         .setColor(0x00AE86);
 
     await channel.send({ embeds: [embed] });
+}
+
+function handleError(error) {
+    if (error.code === 50007) {
+        console.error('Cannot send messages to this user:', error.message);
+    } else {
+        console.error('Error sending DM to user:', error);
+    }
 }
 
 module.exports = {
