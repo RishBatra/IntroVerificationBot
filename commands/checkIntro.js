@@ -33,7 +33,6 @@ module.exports = {
                 member.roles.cache.has(verifiedRole.id) && member.joinedAt > cutoffDate);
             console.log(`[${new Date().toISOString()}] Found ${filteredVerifiedMembers.size} verified members who joined in the last ${days} days`);
 
-            let usersNeedingIntros = [];
             const processedUsers = new Set();
 
             let lastMessageId = null;
@@ -75,6 +74,8 @@ module.exports = {
             }
 
             console.log(`[${new Date().toISOString()}] Finished fetching messages. Total messages processed: ${totalMessagesFetched}`);
+
+            let usersNeedingIntros = [];
 
             filteredVerifiedMembers.forEach(member => {
                 if (!processedUsers.has(member.id)) {
