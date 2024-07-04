@@ -4,7 +4,11 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('checkintros')
         .setDescription('Check #intros channel for users who need to post')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+        .addIntegerOption(option => 
+            option.setName('days')
+                .setDescription('Number of days to check (default: 30, max: 90)')
+                .setRequired(false)),
 
     async execute(interaction) {
         try {
@@ -20,10 +24,14 @@ module.exports = {
                 return interaction.editReply('Could not find #intros channel or Verified role.');
             }
 
+            const days = Math.min(interaction.options.getInteger('days') || 30, 90);
+            const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
             console.log(`[${new Date().toISOString()}] Fetching verified members...`);
             const verifiedMembers = await guild.members.fetch({ cache: false });
-            const filteredVerifiedMembers = verifiedMembers.filter(member => member.roles.cache.has(verifiedRole.id));
-            console.log(`[${new Date().toISOString()}] Found ${filteredVerifiedMembers.size} verified members`);
+            const filteredVerifiedMembers = verifiedMembers.filter(member => 
+                member.roles.cache.has(verifiedRole.id) && member.joinedAt > cutoffDate);
+            console.log(`[${new Date().toISOString()}] Found ${filteredVerifiedMembers.size} verified members who joined in the last ${days} days`);
 
             let usersNeedingIntros = [];
             const processedUsers = new Set();
@@ -43,12 +51,14 @@ module.exports = {
                     const messages = await introsChannel.messages.fetch(options);
                     totalMessagesFetched += messages.size;
 
-                    if (messages.size < 100) {
+                    if (messages.size < 100 || messages.last().createdAt < cutoffDate) {
                         fetchedAllMessages = true;
                     }
 
                     messages.forEach(message => {
-                        processedUsers.add(message.author.id);
+                        if (message.createdAt >= cutoffDate) {
+                            processedUsers.add(message.author.id);
+                        }
                         lastMessageId = message.id;
                     });
 
@@ -75,11 +85,11 @@ module.exports = {
             console.log(`[${new Date().toISOString()}] Found ${usersNeedingIntros.length} users needing intros`);
 
             if (usersNeedingIntros.length === 0) {
-                await interaction.editReply('All verified users have posted in #intros.');
+                await interaction.editReply(`All verified users who joined in the last ${days} days have posted in #intros.`);
             } else {
                 const chunkSize = 1900; // Leave some room for the message header
                 const chunks = [];
-                let currentChunk = `Users needing to post in #intros (Total: ${usersNeedingIntros.length}):\n`;
+                let currentChunk = `Users who joined in the last ${days} days needing to post in #intros (Total: ${usersNeedingIntros.length}):\n`;
 
                 for (const user of usersNeedingIntros) {
                     if (currentChunk.length + user.length + 1 > chunkSize) {
