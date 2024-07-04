@@ -77,8 +77,23 @@ module.exports = {
             if (usersNeedingIntros.length === 0) {
                 await interaction.editReply('All verified users have posted in #intros.');
             } else {
-                const userList = usersNeedingIntros.join('\n');
-                await interaction.editReply(`The following users need to post in #intros:\n${userList}`);
+                const chunkSize = 1900; // Leave some room for the message header
+                const chunks = [];
+                let currentChunk = `Users needing to post in #intros (Total: ${usersNeedingIntros.length}):\n`;
+
+                for (const user of usersNeedingIntros) {
+                    if (currentChunk.length + user.length + 1 > chunkSize) {
+                        chunks.push(currentChunk);
+                        currentChunk = '';
+                    }
+                    currentChunk += user + '\n';
+                }
+                if (currentChunk) chunks.push(currentChunk);
+
+                await interaction.editReply(chunks[0]);
+                for (let i = 1; i < chunks.length; i++) {
+                    await interaction.followUp({ content: chunks[i], ephemeral: true });
+                }
             }
 
             console.log(`[${new Date().toISOString()}] Command 'checkintros' completed successfully`);
