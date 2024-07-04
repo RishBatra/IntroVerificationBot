@@ -33,7 +33,7 @@ module.exports = {
                 member.roles.cache.has(verifiedRole.id) && member.joinedAt > cutoffDate);
             console.log(`[${new Date().toISOString()}] Found ${filteredVerifiedMembers.size} verified members who joined in the last ${days} days`);
 
-            const processedUsers = new Set();
+            const userPostCounts = new Map();
 
             let lastMessageId = null;
             let fetchedAllMessages = false;
@@ -56,12 +56,12 @@ module.exports = {
 
                     messages.forEach(message => {
                         if (message.createdAt >= cutoffDate) {
-                            processedUsers.add(message.author.id);
+                            userPostCounts.set(message.author.id, (userPostCounts.get(message.author.id) || 0) + 1);
                         }
                         lastMessageId = message.id;
                     });
 
-                    if (processedUsers.size >= filteredVerifiedMembers.size) {
+                    if (userPostCounts.size >= filteredVerifiedMembers.size) {
                         fetchedAllMessages = true;
                     }
 
@@ -78,7 +78,7 @@ module.exports = {
             let usersNeedingIntros = [];
 
             filteredVerifiedMembers.forEach(member => {
-                if (!processedUsers.has(member.id)) {
+                if (!userPostCounts.has(member.id)) {
                     usersNeedingIntros.push(member.user.tag);
                 }
             });
