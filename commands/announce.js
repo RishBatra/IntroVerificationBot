@@ -1,11 +1,23 @@
 const { SlashCommandBuilder, EmbedBuilder, ChannelType, PermissionsBitField } = require('discord.js');
 
 const rainbowColors = [
-    '#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#8B00FF'
+    '#FF0000', // Red
+    '#FF7F00', // Orange
+    '#FFFF00', // Yellow
+    '#00FF00', // Green
+    '#0000FF', // Blue
+    '#4B0082', // Indigo
+    '#8B00FF'  // Violet
 ];
 
 const pastelRainbowColors = [
-    '#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF', '#D4BAFF', '#FFBAF2'
+    '#FFB3BA', // Pastel Red
+    '#FFDFBA', // Pastel Orange
+    '#FFFFBA', // Pastel Yellow
+    '#BAFFC9', // Pastel Green
+    '#BAE1FF', // Pastel Blue
+    '#D4BAFF', // Pastel Indigo
+    '#FFBAF2'  // Pastel Violet
 ];
 
 function getRandomColor(colorScheme) {
@@ -21,7 +33,7 @@ module.exports = {
             option.setName('channel')
                 .setDescription('The channel to send the announcement to')
                 .setRequired(true)
-                .addChannelTypes(ChannelType.GuildText))
+                .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
         .addStringOption(option => 
             option.setName('message')
                 .setDescription('The message to announce')
@@ -55,10 +67,12 @@ module.exports = {
             option.setName('mention_everyone')
                 .setDescription('Whether to mention everyone in the announcement')
                 .setRequired(false)),
+
     async execute(interaction) {
         try {
             console.log('Announce command executed');
 
+            // Check if the user has the MANAGE_MESSAGES permission
             if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
                 await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
                 return;
@@ -73,6 +87,12 @@ module.exports = {
             const mentionRole = interaction.options.getRole('mention_role');
             const mentionEveryone = interaction.options.getBoolean('mention_everyone') || false;
 
+            // Check if the channel is a text channel or announcement channel
+            if (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement) {
+                await interaction.reply({ content: 'Please select a text or announcement channel.', ephemeral: true });
+                return;
+            }
+
             // Check bot permissions
             if (!channel.permissionsFor(interaction.client.user).has(PermissionsBitField.Flags.SendMessages)) {
                 await interaction.reply({ content: 'I don\'t have permission to send messages in the target channel.', ephemeral: true });
@@ -85,6 +105,16 @@ module.exports = {
                 return;
             }
 
+            console.log(`Announcement to be sent to channel: ${channel.name}`);
+            console.log(`Message: ${message}`);
+            console.log(`Title: ${title}`);
+            console.log(`Color Scheme: ${colorScheme}`);
+            console.log(`Custom Color: ${customColor || 'N/A'}`);
+            console.log(`Image URL: ${imageUrl || 'N/A'}`);
+            console.log(`Mention Role: ${mentionRole ? mentionRole.name : 'N/A'}`);
+            console.log(`Mention everyone: ${mentionEveryone}`);
+
+            // Create the embed message
             const embed = new EmbedBuilder()
                 .setTitle(title)
                 .setDescription(message)
@@ -96,6 +126,7 @@ module.exports = {
                 embed.setImage(imageUrl);
             }
 
+            // Prepare mention content
             let mentionContent = '';
             if (mentionEveryone) {
                 mentionContent = '@everyone';
@@ -103,6 +134,7 @@ module.exports = {
                 mentionContent = mentionRole.toString();
             }
 
+            // Send the announcement
             await channel.send({ content: mentionContent, embeds: [embed] });
 
             // Log the announcement
