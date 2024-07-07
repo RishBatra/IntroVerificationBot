@@ -90,7 +90,8 @@ module.exports = {
             const serverFaqChannel = interaction.guild.channels.cache.find(channel => channel.name === 'server-faq');
             const infoChannel = interaction.guild.channels.cache.find(channel => channel.name === 'info');
             const serverHelpChannel = interaction.guild.channels.cache.find(channel => channel.name === 'server-help');
-            const talkToModsUser = userMention('575252669443211264'); // Mention the user by ID
+            const openATicketChannel = interaction.guild.channels.cache.find(channel => channel.name === 'open-a-ticket');
+            // const talkToModsUser = userMention('575252669443211264'); // Mention the user by ID
 
             console.log('Rules Channel:', rulesChannel);
             console.log('Roles Channel:', rolesChannel);
@@ -98,7 +99,8 @@ module.exports = {
             console.log('Server FAQ Channel:', serverFaqChannel);
             console.log('Info Channel:', infoChannel);
             console.log('Server Help Channel:', serverHelpChannel);
-            console.log('Talk to Mods User:', talkToModsUser);
+            // console.log('Talk to Mods User:', talkToModsUser);
+            console.log('Open a Ticket Channel:', openATicketChannel);
 
             if (!rulesChannel || !rolesChannel || !channelGuideChannel || !serverFaqChannel || !infoChannel || !serverHelpChannel) {
                 return interaction.followUp({ content: 'One or more channels for the welcome message were not found. Please check the names.', ephemeral: true });
@@ -113,7 +115,7 @@ ${user}
 Welcome. Don't forget to read <#${rulesChannel.id}> and pick your <#${rolesChannel.id}>. 
 Go through <#${channelGuideChannel.id}>, <#${serverFaqChannel.id}> & <#${infoChannel.id}> to understand the server structure.
 
-For any questions related to server use <#${serverHelpChannel.id}> or ${talkToModsUser}
+For any questions related to server use <#${serverHelpChannel.id}> or ${openATicketChannel.id}.
                 `)
                 .setTimestamp();
 
