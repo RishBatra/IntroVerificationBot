@@ -4,8 +4,8 @@ module.exports = {
     name: Events.MessageDelete,
     async execute(message) {
         // Check if the message is from the #intros channel
-        const introsChannelId = 'YOUR_INTROS_CHANNEL_ID';
-        const logChannelId = 'YOUR_LOG_CHANNEL_ID';
+        const introsChannelId = '692965776545546261';
+        const logChannelId = '1259323620661133342';
 
         console.log(`Message deleted in channel ID: ${message.channel.id}`);
 
