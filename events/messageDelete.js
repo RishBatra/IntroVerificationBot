@@ -1,4 +1,4 @@
-const { Events, EmbedBuilder } = require('discord.js');
+const { Events, EmbedBuilder, GuildAuditLogs } = require('discord.js');
 
 module.exports = {
     name: Events.MessageDelete,
@@ -17,19 +17,23 @@ module.exports = {
 
             let deleter = 'Unknown';
 
-            // Fetch audit logs to find the deleter
-            const fetchedLogs = await message.guild.fetchAuditLogs({
-                limit: 1,
-                type: 'MESSAGE_DELETE',
-            });
+            try {
+                // Fetch audit logs to find the deleter
+                const fetchedLogs = await message.guild.fetchAuditLogs({
+                    limit: 1,
+                    type: GuildAuditLogs.Actions.MESSAGE_DELETE,
+                });
 
-            const deletionLog = fetchedLogs.entries.first();
+                const deletionLog = fetchedLogs.entries.first();
 
-            if (deletionLog) {
-                const { executor, target } = deletionLog;
-                if (target.id === message.author.id) {
-                    deleter = executor.tag;
+                if (deletionLog) {
+                    const { executor, target } = deletionLog;
+                    if (target.id === message.author.id) {
+                        deleter = executor.tag;
+                    }
                 }
+            } catch (error) {
+                console.error('Error fetching audit logs:', error);
             }
 
             const embed = new EmbedBuilder()
