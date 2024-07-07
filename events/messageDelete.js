@@ -1,11 +1,11 @@
-const { Events, EmbedBuilder, GuildAuditLogs } = require('discord.js');
+const { Events, EmbedBuilder, AuditLogEvent } = require('discord.js');
 
 module.exports = {
     name: Events.MessageDelete,
     async execute(message) {
         // Check if the message is from the #intros channel
-        const introsChannelId = '692965776545546261';
-        const logChannelId = '1259323620661133342';
+        const introsChannelId = 'YOUR_INTROS_CHANNEL_ID';
+        const logChannelId = 'YOUR_LOG_CHANNEL_ID';
 
         if (message.channel.id === introsChannelId) {
             const logChannel = message.guild.channels.cache.get(logChannelId);
@@ -21,7 +21,7 @@ module.exports = {
                 // Fetch audit logs to find the deleter
                 const fetchedLogs = await message.guild.fetchAuditLogs({
                     limit: 1,
-                    type: GuildAuditLogs.Actions.MESSAGE_DELETE,
+                    type: AuditLogEvent.MessageDelete,
                 });
 
                 const deletionLog = fetchedLogs.entries.first();
@@ -40,7 +40,7 @@ module.exports = {
                 .setTitle('Message Deleted')
                 .setColor(0xff0000)
                 .addFields(
-                    { name: 'Author', value: `${message.author.tag} (${message.author.id})` },
+                    { name: 'Author', value: `<@${message.author.id}>` },
                     { name: 'Channel', value: `${message.channel.name} (${message.channel.id})` },
                     { name: 'Content', value: message.content || 'No content' },
                     { name: 'Deleted by', value: deleter }
