@@ -37,14 +37,16 @@ module.exports = {
             }
 
             const embed = new EmbedBuilder()
-                .setTitle('Message Deleted')
                 .setColor(0xff0000)
+                .setTitle('Message Deleted')
+                .setThumbnail(message.author.displayAvatarURL())
                 .addFields(
-                    { name: 'Author', value: `<@${message.author.id}>` },
-                    { name: 'Channel', value: `${message.channel.name} (${message.channel.id})` },
-                    { name: 'Content', value: message.content || 'No content' },
-                    { name: 'Deleted by', value: deleter }
+                    { name: 'Author', value: `<@${message.author.id}>`, inline: true },
+                    { name: 'Channel', value: `${message.channel.name}`, inline: true },
+                    { name: 'Deleted by', value: deleter, inline: true },
+                    { name: 'Content', value: message.content || 'No content' }
                 )
+                .setFooter({ text: `Message ID: ${message.id}` })
                 .setTimestamp();
 
             logChannel.send({ embeds: [embed] });
