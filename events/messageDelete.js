@@ -7,7 +7,11 @@ module.exports = {
         const introsChannelId = 'YOUR_INTROS_CHANNEL_ID';
         const logChannelId = 'YOUR_LOG_CHANNEL_ID';
 
+        console.log(`Message deleted in channel ID: ${message.channel.id}`);
+
         if (message.channel.id === introsChannelId) {
+            console.log('Message is from the intros channel.');
+
             const logChannel = message.guild.channels.cache.get(logChannelId);
 
             if (!logChannel) {
@@ -25,6 +29,7 @@ module.exports = {
                 });
 
                 const deletionLog = fetchedLogs.entries.first();
+                console.log('Fetched audit logs:', deletionLog);
 
                 if (deletionLog) {
                     const { executor, target } = deletionLog;
@@ -50,6 +55,9 @@ module.exports = {
                 .setTimestamp();
 
             logChannel.send({ embeds: [embed] });
+            console.log('Logged deleted message.');
+        } else {
+            console.log('Message is not from the intros channel.');
         }
     },
 };
