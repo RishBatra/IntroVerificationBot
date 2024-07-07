@@ -1,4 +1,3 @@
-const handleIntro = require('../handlers/introHandler');
 const { handleTicket } = require('../handlers/ticketHandler');
 
 module.exports = {
@@ -17,8 +16,8 @@ module.exports = {
         if (message.guild) {
             console.log('Message is in a guild');
             if (message.channel.name === 'intros') {
-                console.log('Message is in intros channel, calling handleIntro');
-                await handleIntro(message);
+                console.log('Message is in intros channel, but no special handling is defined.');
+                // If you want to add some generic handling for messages in intros, you can do it here.
             }
         } else {
             console.log('Message is not in a guild, calling handleTicket');
