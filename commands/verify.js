@@ -115,7 +115,7 @@ ${user}
 Welcome. Don't forget to read <#${rulesChannel.id}> and pick your <#${rolesChannel.id}>. 
 Go through <#${channelGuideChannel.id}>, <#${serverFaqChannel.id}> & <#${infoChannel.id}> to understand the server structure.
 
-For any questions related to server use <#${serverHelpChannel.id}> or ${openATicketChannel.id}.
+For any questions related to server use <#${serverHelpChannel.id}> or <#${openATicketChannel.id}.>
                 `)
                 .setTimestamp();
 
