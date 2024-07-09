@@ -110,13 +110,13 @@ module.exports = {
                 .setColor(0x00ff00)
                 .setTitle('Welcome!')
                 .setDescription(`
-Hello there! 
-${user}
-Welcome. Don't forget to read <#${rulesChannel.id}> and pick your <#${rolesChannel.id}>. 
-Go through <#${channelGuideChannel.id}>, <#${serverFaqChannel.id}> & <#${infoChannel.id}> to understand the server structure.
-
-For any questions related to server use <#${serverHelpChannel.id}> or <#${openATicketChannel.id}.>
-                `)
+                    Hello there! 
+                    ${user}
+                    Welcome. Don't forget to read <#${rulesChannel.id}> and pick your <#${rolesChannel.id}>. 
+                    Go through <#${channelGuideChannel.id}>, <#${serverFaqChannel.id}> & <#${infoChannel.id}> to understand the server structure.
+                    
+                    For any questions related to server use <#${serverHelpChannel.id}> or <#${openATicketChannel.id}>.
+                        `)
                 .setTimestamp();
 
             // Send the welcome message in the general channel
