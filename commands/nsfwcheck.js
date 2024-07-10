@@ -1,16 +1,17 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
-const { parse } = require('date-fns');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('nsfwcheck')
         .setDescription('Check if a user is eligible for NSFW access')
-        .addUserOption(option => 
+        .addUserOption(option =>
             option.setName('user')
                 .setDescription('The user to check for NSFW access')
                 .setRequired(true)),
     async execute(interaction) {
         try {
+            await interaction.deferReply({ ephemeral: true });
+
             const executor = interaction.member;
             const user = interaction.options.getUser('user');
             const member = interaction.guild.members.cache.get(user.id);
@@ -32,12 +33,12 @@ module.exports = {
 
             // Check if the executor has the admin role
             if (!executor.roles.cache.has(adminRole.id)) {
-                return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+                return interaction.editReply({ content: 'You do not have permission to use this command.' });
             }
 
             // Check if the user has both the green circle emoji role and star emoji role
             if (!member.roles.cache.has(greenCircleRole.id) || !member.roles.cache.has(starRole.id)) {
-                return interaction.reply({ content: 'The user does not have the required roles.', ephemeral: true });
+                return interaction.editReply({ content: 'The user does not have the required roles.' });
             }
 
             // Recursive function to fetch all messages from the intro channel until we find the user's intro
@@ -67,12 +68,12 @@ module.exports = {
             const introMessage = await fetchMessagesBefore();
 
             if (!introMessage) {
-                return interaction.reply({ content: 'The user does not have an intro message with age information.', ephemeral: true });
+                return interaction.editReply({ content: 'The user does not have an intro message with age information.' });
             }
 
             const ageMatch = introMessage.content.match(/Age:\s*(\d+)/);
             if (!ageMatch || parseInt(ageMatch[1]) < 18) {
-                return interaction.reply({ content: 'The user is not 18+.', ephemeral: true });
+                return interaction.editReply({ content: 'The user is not 18+.' });
             }
 
             // Check if the user's join date is more than one month on the server
@@ -80,13 +81,13 @@ module.exports = {
             const oneMonthAgo = new Date();
             oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
             if (joinDate > oneMonthAgo) {
-                return interaction.reply({ content: 'The user has not been on the server for more than one month.', ephemeral: true });
+                return interaction.editReply({ content: 'The user has not been on the server for more than one month.' });
             }
 
             // Check the user's pronouns based on their roles
             const userPronouns = Object.keys(pronounRoles).find(pronoun => member.roles.cache.some(role => role.name === pronoun));
             if (!userPronouns) {
-                return interaction.reply({ content: 'The user does not have a pronoun role.', ephemeral: true });
+                return interaction.editReply({ content: 'The user does not have a pronoun role.' });
             }
 
             // Suggest default roles based on pronouns and wait for admin response
@@ -107,7 +108,7 @@ module.exports = {
 
             const row = new ActionRowBuilder().addComponents(roleSelectMenu);
 
-            await interaction.reply({ content: `The user is eligible for NSFW access. Suggested role: ${defaultRole.name}. Please select a role:`, components: [row], ephemeral: true });
+            await interaction.editReply({ content: `The user is eligible for NSFW access. Suggested role: ${defaultRole.name}. Please select a role:`, components: [row] });
 
             const filter = i => i.customId === 'select-role' && i.user.id === interaction.user.id;
             const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
@@ -143,7 +144,7 @@ module.exports = {
             });
         } catch (error) {
             console.error('Error executing command:', error);
-            await interaction.reply({ content: 'There was an error executing the command. Please try again later.', ephemeral: true });
+            await interaction.editReply({ content: 'There was an error executing the command. Please try again later.' });
         }
     },
 };
