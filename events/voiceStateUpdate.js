@@ -1,4 +1,4 @@
-const TARGET_USER_ID = '615016296693628931'; // Replace with the actual user ID you want to kick
+const TARGET_USER_ID = '562841675203084289'; // Replace with the actual user ID you want to kick
 
 module.exports = {
     name: 'voiceStateUpdate',
