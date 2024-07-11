@@ -6,10 +6,14 @@ module.exports = (client) => {
 
     for (const file of eventFiles) {
         const event = require(`../events/${file}`);
-        if (event.once) {
-            client.once(event.name, (...args) => event.execute(...args));
+        if (event.name && event.execute) {
+            if (event.once) {
+                client.once(event.name, (...args) => event.execute(...args));
+            } else {
+                client.on(event.name, (...args) => event.execute(...args));
+            }
         } else {
-            client.on(event.name, (...args) => event.execute(...args));
+            console.warn(`The event at ../events/${file} is missing a required "name" or "execute" property.`);
         }
     }
 };
