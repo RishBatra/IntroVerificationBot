@@ -27,6 +27,7 @@ const client = new Client({
         GatewayIntentBits.GuildWebhooks,
         GatewayIntentBits.GuildInvites,
         GatewayIntentBits.DirectMessages, // Ensure you have this intent
+        GatewayIntentBits.GuildVoiceStates
     ],
     partials: [Partials.Channel] // Required to read DMs
 });
