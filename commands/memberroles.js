@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
-const { MessageEmbed } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -35,16 +35,16 @@ module.exports = {
             const embeds = roleNames.map(roleName => {
                 const members = roleLists[roleName];
                 const description = members.length > 0 ? members.map(member => `${member.nickname} (${member.username})`).join('\n') : 'No members found.';
-                return new MessageEmbed()
+                return new EmbedBuilder()
                     .setTitle(`${roleName} Members`)
                     .setDescription(description)
                     .setColor('#00FF00');
             });
 
-            return interaction.reply({ embeds });
+            await interaction.reply({ embeds });
         } catch (error) {
             console.error('Error fetching members or roles:', error);
-            return interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+            await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
         }
     },
 };
