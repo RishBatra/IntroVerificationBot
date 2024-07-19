@@ -3,6 +3,7 @@ const { ChannelType } = require('discord.js');
 function validateIntroMessage(content) {
     const errors = [];
     let isValid = true;
+    let specialMessage = null;
 
     // Split the content into lines
     const lines = content.split('\n').map(line => line.trim());
@@ -26,8 +27,13 @@ function validateIntroMessage(content) {
     const ageLine = lines.find(line => line.startsWith('Age:'));
     if (ageLine) {
         const age = parseInt(ageLine.split(':')[1].trim());
-        if (age < 16 || age > 100) {
-            errors.push('Age must be between 16 and 100.');
+        if (age < 16) {
+            errors.push('You must be at least 16 years old to join this server.');
+            specialMessage = `Please join our teen server instead: https://discord.gg/jUdFtEZXJE`;
+            isValid = false;
+        } else if (age > 100) {
+            errors.push('Age must be 100 or below.');
+            specialMessage = `Wow, over 100 and using Discord? You must be the coolest great-great-grandparent ever! 😎👴👵`;
             isValid = false;
         }
     }
@@ -37,7 +43,7 @@ function validateIntroMessage(content) {
     if (locationLine) {
         const location = locationLine.split(':')[1].trim().toLowerCase();
         if (location === 'india' || location === 'earth') {
-            errors.push('Please provide a more specific location in State/City format, e.g., "Maharashtra/Mumbai" or "Delhi/New Delhi".');
+            errors.push('Please provide a more specific location in City/State format, e.g., "Mumbai/Maharashtra" or "New Delhi/Delhi".');
             isValid = false;
         }
     }
@@ -52,15 +58,19 @@ function validateIntroMessage(content) {
         }
     }
 
-    return { isValid, errors };
+    return { isValid, errors, specialMessage };
 }
 
 async function handleIntro(message) {
-    const { isValid, errors } = validateIntroMessage(message.content);
+    const { isValid, errors, specialMessage } = validateIntroMessage(message.content);
 
     if (!isValid) {
-        const errorMessage = `Hey ${message.author}, there were some issues with your introduction:\n\n${errors.join('\n')}`;
+        let errorMessage = `Hey ${message.author}, there were some issues with your introduction:\n\n${errors.join('\n')}`;
         
+        if (specialMessage) {
+            errorMessage += `\n\n${specialMessage}`;
+        }
+
         // Delete the invalid intro message
         await message.delete();
 
