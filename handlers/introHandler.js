@@ -25,7 +25,7 @@ function validateIntroMessage(content) {
     });
 
     if (missingFields.length > 0) {
-        errors.push(`You are missing the following fields: ${missingFields.join(', ')}`);
+        errors.push(`You are missing the following fields: \`${missingFields.join('`, `')}\``);
     }
 
     // Check age
@@ -93,9 +93,15 @@ async function handleIntro(message) {
             // Send error message to #verification-help channel
             await helpChannel.send(errorMessage);
 
-            // Send a DM to the user with the error message and their original message
+            // Send a DM to the user with the error message
             try {
-                const dmErrorMessage = `${errorMessage}\n\nHere's your original message for easy correction:\n\`\`\`\n${message.content}\n\`\`\``;
+                let dmErrorMessage = errorMessage;
+                const ageLine = message.content.split('\n').find(line => line.startsWith('Age:'));
+                const age = ageLine ? parseInt(ageLine.split(':')[1].trim()) : null;
+
+                if (age === null || (age >= 16 && age <= 100)) {
+                    dmErrorMessage += `\n\nHere's your original message for easy correction:\n\`\`\`\n${message.content}\n\`\`\``;
+                }
                 await message.author.send(dmErrorMessage);
             } catch (error) {
                 console.error('Failed to send DM to user', error);
