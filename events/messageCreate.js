@@ -21,7 +21,7 @@ module.exports = {
             console.log('Message is in a guild');
             
             // Handle intro messages
-            if (message.channel.name === 'intros-test') {
+            if (message.channel.name === 'intros') {
                 console.log('Message is in intros channel, handling introduction');
                 try {
                     await handleIntro(message);

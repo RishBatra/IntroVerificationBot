@@ -81,7 +81,7 @@ async function handleIntro(message) {
 
         // Find the #verification-help channel
         const helpChannel = message.guild.channels.cache.find(channel => 
-            channel.name === 'intros-test' && channel.type === ChannelType.GuildText
+            channel.name === 'verification-help' && channel.type === ChannelType.GuildText
         );
 
         // Find the review channel
