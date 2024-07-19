@@ -1,3 +1,5 @@
+const { ChannelType } = require('discord.js');
+
 function validateIntroMessage(content) {
     const errors = [];
     let isValid = true;
@@ -72,3 +74,39 @@ function validateIntroMessage(content) {
 
     return { isValid, errors };
 }
+
+async function handleIntro(message) {
+    const { isValid, errors } = validateIntroMessage(message.content);
+
+    if (!isValid) {
+        const errorMessage = `Hey ${message.author}, there were some issues with your introduction:\n\n${errors.join('\n')}`;
+        
+        // Delete the invalid intro message
+        await message.delete();
+
+        // Find the #verification-help channel
+        const helpChannel = message.guild.channels.cache.find(channel => 
+            channel.name === 'verification-help' && channel.type === ChannelType.GuildText
+        );
+
+        if (helpChannel) {
+            // Send error message to #verification-help channel
+            await helpChannel.send(errorMessage);
+
+            // Optionally, send a DM to the user
+            try {
+                await message.author.send(`Your introduction in ${message.channel} was invalid. Please check #verification-help for details on how to correct it.`);
+            } catch (error) {
+                console.error('Failed to send DM to user', error);
+            }
+        } else {
+            console.error('Verification help channel not found');
+            await message.author.send(errorMessage);
+        }
+    } else {
+        // Handle valid introductions if needed
+        console.log(`Valid introduction from ${message.author.tag}`);
+    }
+}
+
+module.exports = { handleIntro };
