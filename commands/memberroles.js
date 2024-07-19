@@ -7,38 +7,33 @@ module.exports = {
         .setDescription('Lists all members with specific roles in alphabetical order'),
 
     async execute(interaction) {
+        await interaction.deferReply({ ephemeral: true });
+
         const roleNames = ['Waiting for Verification', 'Verified', 'Inactive ⏸'];
         const guild = interaction.guild;
 
         try {
-            await guild.members.fetch(); // Fetch all members
-
             const roleLists = {};
 
             for (const roleName of roleNames) {
                 const role = guild.roles.cache.find(r => r.name === roleName);
                 if (role) {
-                    const members = guild.members.cache
-                        .filter(member => member.roles.cache.has(role.id))
-                        .map(member => ({
-                            username: member.user.username,
-                            nickname: member.nickname || member.user.username
-                        }))
-                        .sort((a, b) => a.nickname.localeCompare(b.nickname));
-                    roleLists[roleName] = members;
+                    const members = await guild.members.fetch({ role: role.id });
+                    roleLists[roleName] = members.map(member => ({
+                        username: member.user.username,
+                        nickname: member.nickname || member.user.username
+                    })).sort((a, b) => a.nickname.localeCompare(b.nickname));
                 } else {
                     roleLists[roleName] = [];
                 }
-                await new Promise(resolve => setTimeout(resolve, 1000)); // Delay to prevent rate limits
             }
 
-            // Initial reply to acknowledge the interaction
-            await interaction.reply({ content: 'Fetching member lists...', ephemeral: true });
+            await interaction.editReply('Member lists fetched. Sending results...');
 
             for (const roleName of roleNames) {
                 const members = roleLists[roleName];
                 if (members.length === 0) {
-                    await interaction.followUp({ content: `No members found with the role "${roleName}".` });
+                    await interaction.followUp({ content: `No members found with the role "${roleName}".`, ephemeral: true });
                     continue;
                 }
 
@@ -46,29 +41,27 @@ module.exports = {
                 const messages = [];
                 for (const member of members) {
                     const memberString = `${member.nickname} (${member.username})\n`;
-                    if (description.length + memberString.length > 4096) {
+                    if (description.length + memberString.length > 4000) {
                         messages.push(description);
                         description = '';
                     }
                     description += memberString;
                 }
-                messages.push(description);
+                if (description) messages.push(description);
 
-                for (const message of messages) {
+                for (let i = 0; i < messages.length; i++) {
                     const embed = new EmbedBuilder()
-                        .setTitle(`${roleName} Members`)
-                        .setDescription(message)
+                        .setTitle(`${roleName} Members (Part ${i + 1}/${messages.length})`)
+                        .setDescription(messages[i])
                         .setColor('#00FF00');
-                    await interaction.followUp({ embeds: [embed] });
+                    await interaction.followUp({ embeds: [embed], ephemeral: true });
                 }
             }
+
+            await interaction.followUp({ content: 'All member lists have been sent.', ephemeral: true });
         } catch (error) {
-            console.error('Error fetching members or roles:', error);
-            if (!interaction.replied) {
-                await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
-            } else {
-                await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
-            }
+            console.error('Error in memberroles command:', error);
+            await interaction.followUp({ content: 'There was an error while executing this command. Please try again later.', ephemeral: true });
         }
     },
 };
