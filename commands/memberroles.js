@@ -32,10 +32,13 @@ module.exports = {
                 await new Promise(resolve => setTimeout(resolve, 1000)); // Delay to prevent rate limits
             }
 
+            // Initial reply to acknowledge the interaction
+            await interaction.reply({ content: 'Fetching member lists...', ephemeral: true });
+
             for (const roleName of roleNames) {
                 const members = roleLists[roleName];
                 if (members.length === 0) {
-                    await interaction.followUp({ content: `No members found with the role "${roleName}".`, ephemeral: true });
+                    await interaction.followUp({ content: `No members found with the role "${roleName}".` });
                     continue;
                 }
 
@@ -61,7 +64,11 @@ module.exports = {
             }
         } catch (error) {
             console.error('Error fetching members or roles:', error);
-            return interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+            if (!interaction.replied) {
+                await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+            } else {
+                await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+            }
         }
     },
 };
