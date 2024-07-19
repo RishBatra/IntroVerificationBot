@@ -3,7 +3,6 @@ const { ChannelType } = require('discord.js');
 function validateIntroMessage(content) {
     const errors = [];
     let isValid = true;
-    let specialMessage = null;
 
     // Split the content into lines
     const lines = content.split('\n').map(line => line.trim());
@@ -29,11 +28,9 @@ function validateIntroMessage(content) {
         const age = parseInt(ageLine.split(':')[1].trim());
         if (age < 16) {
             errors.push('You must be at least 16 years old to join this server.');
-            specialMessage = `Please join our teen server instead: https://discord.gg/jUdFtEZXJE`;
             isValid = false;
         } else if (age > 100) {
             errors.push('Age must be 100 or below.');
-            specialMessage = `Wow, over 100 and using Discord? You must be the coolest great-great-grandparent ever! 😎👴👵`;
             isValid = false;
         }
     }
@@ -58,19 +55,15 @@ function validateIntroMessage(content) {
         }
     }
 
-    return { isValid, errors, specialMessage };
+    return { isValid, errors };
 }
 
 async function handleIntro(message) {
-    const { isValid, errors, specialMessage } = validateIntroMessage(message.content);
+    const { isValid, errors } = validateIntroMessage(message.content);
 
     if (!isValid) {
         let errorMessage = `Hey ${message.author}, there were some issues with your introduction:\n\n${errors.join('\n')}`;
         
-        if (specialMessage) {
-            errorMessage += `\n\n${specialMessage}`;
-        }
-
         // Delete the invalid intro message
         await message.delete();
 
@@ -83,9 +76,10 @@ async function handleIntro(message) {
             // Send error message to #verification-help channel
             await helpChannel.send(errorMessage);
 
-            // Optionally, send a DM to the user
+            // Send a DM to the user with the error message and their original message
             try {
-                await message.author.send(`Your introduction in ${message.channel} was invalid. Please check #verification-help for details on how to correct it.`);
+                const dmErrorMessage = `${errorMessage}\n\nHere's your original message for easy correction:\n\`\`\`\n${message.content}\n\`\`\``;
+                await message.author.send(dmErrorMessage);
             } catch (error) {
                 console.error('Failed to send DM to user', error);
             }
