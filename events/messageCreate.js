@@ -1,9 +1,9 @@
 const { handleTicket } = require('../handlers/ticketHandler');
-const IntroHandler = require('../handlers/introHandler');
+const { handleIntro } = require('../handlers/introHandler');
 
 module.exports = {
     name: 'messageCreate',
-    async execute(message, client) {
+    async execute(message) {
         console.log(`Received message: "${message.content}" in channel type: ${message.channel.type}`);
 
         // Ignore bot messages, except for ticket closure notifications
@@ -23,9 +23,8 @@ module.exports = {
             // Handle intro messages
             if (message.channel.name === 'intros') {
                 console.log('Message is in intros channel, handling introduction');
-                const introHandler = new IntroHandler(client);
                 try {
-                    await introHandler.handleIntro(message);
+                    await handleIntro(message);
                 } catch (error) {
                     console.error('Error handling intro:', error);
                 }
