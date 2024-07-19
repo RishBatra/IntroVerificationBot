@@ -1,3 +1,5 @@
+const { ChannelType } = require('discord.js');
+
 function validateIntroMessage(content) {
     const errors = [];
     let isValid = true;
@@ -52,3 +54,5 @@ function validateIntroMessage(content) {
 
     return { isValid, errors };
 }
+
+module.exports = { handleIntro };
