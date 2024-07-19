@@ -3,6 +3,8 @@ const { ChannelType } = require('discord.js');
 function validateIntroMessage(content) {
     const errors = [];
     let isValid = true;
+    let specialMessage = null;
+    const missingFields = [];
 
     // Split the content into lines
     const lines = content.split('\n').map(line => line.trim());
@@ -14,13 +16,17 @@ function validateIntroMessage(content) {
     requiredFields.forEach(field => {
         const lineIndex = lines.findIndex(line => line.startsWith(field + ':'));
         if (lineIndex === -1) {
-            errors.push(`Missing ${field} field.`);
+            missingFields.push(field);
             isValid = false;
         } else if (lines[lineIndex].split(':')[1].trim() === '') {
-            errors.push(`${field} field cannot be empty.`);
+            missingFields.push(field);
             isValid = false;
         }
     });
+
+    if (missingFields.length > 0) {
+        errors.push(`You are missing the following fields: ${missingFields.join(', ')}`);
+    }
 
     // Check age
     const ageLine = lines.find(line => line.startsWith('Age:'));
@@ -28,9 +34,11 @@ function validateIntroMessage(content) {
         const age = parseInt(ageLine.split(':')[1].trim());
         if (age < 16) {
             errors.push('You must be at least 16 years old to join this server.');
+            specialMessage = `Please join our teen server instead: https://discord.gg/jUdFtEZXJE`;
             isValid = false;
         } else if (age > 100) {
             errors.push('Age must be 100 or below.');
+            specialMessage = `Wow, over 100 and using Discord? You must be the coolest great-great-grandparent ever! 😎👴👵`;
             isValid = false;
         }
     }
@@ -55,21 +63,30 @@ function validateIntroMessage(content) {
         }
     }
 
-    return { isValid, errors };
+    return { isValid, errors, specialMessage };
 }
 
 async function handleIntro(message) {
-    const { isValid, errors } = validateIntroMessage(message.content);
+    const { isValid, errors, specialMessage } = validateIntroMessage(message.content);
 
     if (!isValid) {
-        let errorMessage = `Hey ${message.author}, there were some issues with your introduction:\n\n${errors.join('\n')}`;
+        let errorMessage = `Hey ${message.author}, I noticed some issues with your introduction:\n\n${errors.join('\n')}`;
         
+        if (specialMessage) {
+            errorMessage += `\n\n${specialMessage}`;
+        }
+
         // Delete the invalid intro message
         await message.delete();
 
         // Find the #verification-help channel
         const helpChannel = message.guild.channels.cache.find(channel => 
             channel.name === 'intros-test' && channel.type === ChannelType.GuildText
+        );
+
+        // Find the review channel
+        const reviewChannel = message.guild.channels.cache.find(channel => 
+            channel.name === 'intro-review' && channel.type === ChannelType.GuildText
         );
 
         if (helpChannel) {
@@ -86,6 +103,13 @@ async function handleIntro(message) {
         } else {
             console.error('Verification help channel not found');
             await message.author.send(errorMessage);
+        }
+
+        // Send the deleted intro to the review channel
+        if (reviewChannel) {
+            await reviewChannel.send(`Deleted intro from ${message.author}:\n\`\`\`\n${message.content}\n\`\`\`\nReason: ${errors.join(', ')}`);
+        } else {
+            console.error('Review channel not found');
         }
     } else {
         // Handle valid introductions if needed
