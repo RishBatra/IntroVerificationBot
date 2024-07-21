@@ -10,16 +10,20 @@ function validateIntroMessage(content) {
     const lines = content.split('\n').map(line => line.trim());
 
     // Define required fields
-    const requiredFields = ['Age', 'Gender', 'Pronouns', 'Orientation', 'Location', '*Education/career', 'Hobbies', '*Trivia'];
+    const requiredFields = ['Age', 'Gender', 'Pronouns', 'Orientation', 'Location', 'Education/career', 'Hobbies', 'Trivia'];
 
     // Check each required field
     requiredFields.forEach(field => {
-        const lineIndex = lines.findIndex(line => line.startsWith(field + ':'));
+        const lineIndex = lines.findIndex(line => 
+            line.toLowerCase().startsWith(field.toLowerCase() + ':') ||
+            (field === 'Education/career' && line.toLowerCase().startsWith('*education/career:')) ||
+            (field === 'Trivia' && line.toLowerCase().startsWith('*trivia:'))
+        );
         if (lineIndex === -1) {
             missingFields.push(field);
             isValid = false;
         } else if (lines[lineIndex].split(':')[1].trim() === '') {
-            missingFields.push(field);
+            errors.push(`The \`${field}\` field cannot be empty.`);
             isValid = false;
         }
     });
@@ -29,7 +33,7 @@ function validateIntroMessage(content) {
     }
 
     // Check age
-    const ageLine = lines.find(line => line.startsWith('Age:'));
+    const ageLine = lines.find(line => line.toLowerCase().startsWith('age:'));
     if (ageLine) {
         const age = parseInt(ageLine.split(':')[1].trim());
         if (age < 16) {
@@ -44,7 +48,7 @@ function validateIntroMessage(content) {
     }
 
     // Check location
-    const locationLine = lines.find(line => line.startsWith('Location:'));
+    const locationLine = lines.find(line => line.toLowerCase().startsWith('location:'));
     if (locationLine) {
         const location = locationLine.split(':')[1].trim().toLowerCase();
         if (location === 'india' || location === 'earth') {
@@ -54,7 +58,7 @@ function validateIntroMessage(content) {
     }
 
     // Check orientation
-    const orientationLine = lines.find(line => line.startsWith('Orientation:'));
+    const orientationLine = lines.find(line => line.toLowerCase().startsWith('orientation:'));
     if (orientationLine) {
         const orientation = orientationLine.split(':')[1].trim().toLowerCase();
         if (orientation === 'bi') {
@@ -96,7 +100,7 @@ async function handleIntro(message) {
             // Send a DM to the user with the error message
             try {
                 let dmErrorMessage = errorMessage;
-                const ageLine = message.content.split('\n').find(line => line.startsWith('Age:'));
+                const ageLine = message.content.split('\n').find(line => line.toLowerCase().startsWith('age:'));
                 const age = ageLine ? parseInt(ageLine.split(':')[1].trim()) : null;
 
                 if (age === null || (age >= 16 && age <= 100)) {
