@@ -3,7 +3,7 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('listverified')
-        .setDescription('List members who only have the Verified role'),
+        .setDescription('List and mention members who only have the Verified role'),
 
     async execute(interaction) {
         await interaction.deferReply();
@@ -25,6 +25,7 @@ module.exports = {
                 return interaction.editReply("No members found with only the 'Verified' role.");
             }
 
+            const memberMentions = verifiedOnlyMembers.map(member => `<@${member.id}>`).join(' ');
             const memberList = verifiedOnlyMembers.map(member => `${member.user.tag} (${member.id})`).join('\n');
 
             const embed = new EmbedBuilder()
@@ -34,9 +35,11 @@ module.exports = {
 
             if (memberList.length <= 4096) {
                 embed.setDescription(memberList);
-                await interaction.editReply({ embeds: [embed] });
+                await interaction.editReply({ content: memberMentions, embeds: [embed], allowedMentions: { parse: ['users'] } });
             } else {
                 const chunks = this.chunkString(memberList, 4096);
+                await interaction.editReply({ content: memberMentions, allowedMentions: { parse: ['users'] } });
+                
                 for (let i = 0; i < chunks.length; i++) {
                     const chunkEmbed = new EmbedBuilder()
                         .setTitle(`Members with only 'Verified' role (Part ${i + 1})`)
@@ -44,11 +47,7 @@ module.exports = {
                         .setColor('#0099ff')
                         .setTimestamp();
                     
-                    if (i === 0) {
-                        await interaction.editReply({ embeds: [chunkEmbed] });
-                    } else {
-                        await interaction.followUp({ embeds: [chunkEmbed] });
-                    }
+                    await interaction.followUp({ embeds: [chunkEmbed] });
                     
                     // Add a delay between messages to avoid rate limiting
                     await new Promise(resolve => setTimeout(resolve, 1000));
