@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { MessageEmbed } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -28,7 +27,7 @@ module.exports = {
 
             const memberList = verifiedOnlyMembers.map(member => `${member.user.tag} (${member.id})`).join('\n');
 
-            const embed = new MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle("Members with only 'Verified' role")
                 .setColor('#0099ff')
                 .setTimestamp();
@@ -39,7 +38,7 @@ module.exports = {
             } else {
                 const chunks = this.chunkString(memberList, 4096);
                 for (let i = 0; i < chunks.length; i++) {
-                    const chunkEmbed = new MessageEmbed()
+                    const chunkEmbed = new EmbedBuilder()
                         .setTitle(`Members with only 'Verified' role (Part ${i + 1})`)
                         .setDescription(chunks[i])
                         .setColor('#0099ff')
