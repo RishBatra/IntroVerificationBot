@@ -1,7 +1,7 @@
 const { Events } = require('discord.js');
 const { handleTicketCreation, handleTicketTypeSelection } = require('../handlers/ticketHandler');
 const Ticket = require('../models/ticket');
-const requestAccessCommand = require('../commands/requestaccess'); // Add this line
+const requestAccessCommand = require('../commands/requestaccess');
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -29,14 +29,14 @@ module.exports = {
             if (interaction.customId.startsWith('ticket_')) {
                 await handleTicketCreation(interaction);
             } else {
-                await requestAccessCommand.buttonHandler(interaction); // Add this line
+                await requestAccessCommand.buttonHandler(interaction);
             }
         } else if (interaction.isStringSelectMenu()) {
             if (interaction.customId === 'select_ticket_type') {
                 await handleTicketTypeSelection(interaction);
             }
         } else if (interaction.isModalSubmit()) {
-            await requestAccessCommand.modalHandler(interaction); // Add this line
+            await requestAccessCommand.modalHandler(interaction);
         }
     },
 };

@@ -32,7 +32,6 @@ module.exports = {
     },
 };
 
-// Button click handler
 async function handleRequestAccess(interaction) {
     const modal = new ModalBuilder()
         .setCustomId('access_request_form')
@@ -57,7 +56,6 @@ async function handleRequestAccess(interaction) {
     await interaction.showModal(modal);
 }
 
-// Form submission handler
 async function handleFormSubmission(interaction) {
     await interaction.deferReply({ ephemeral: true });
 
@@ -91,7 +89,6 @@ async function handleFormSubmission(interaction) {
     await interaction.editReply('Your request has been submitted for review. Please wait for an admin to process it.');
 }
 
-// Approve/Reject handler
 async function handleReviewDecision(interaction) {
     await interaction.deferUpdate();
 
@@ -125,14 +122,14 @@ async function handleReviewDecision(interaction) {
                 await generalChannel.send(`Welcome back, ${member}! Don't forget to pick your roles.`);
             }
 
-            await interaction.editReply(`Access granted for ${member.user.tag}.`);
+            await interaction.editReply({ content: `Access granted for ${member.user.tag}.`, components: [] });
             await member.send('Your access request has been approved. Welcome back!');
         } catch (error) {
             console.error('Error approving access:', error);
-            await interaction.editReply('An error occurred while approving access.');
+            await interaction.editReply({ content: 'An error occurred while approving access.', components: [] });
         }
     } else if (action === 'reject') {
-        await interaction.editReply(`Access denied for ${member.user.tag}.`);
+        await interaction.editReply({ content: `Access denied for ${member.user.tag}.`, components: [] });
         await member.send('Your access request has been denied. Please contact an admin for more information.');
     }
 }
