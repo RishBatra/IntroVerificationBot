@@ -18,17 +18,20 @@ module.exports = {
         const embed = new EmbedBuilder()
             .setColor(0x0099FF)
             .setTitle('Request Access')
-            .setDescription('Click the button below to request access and remove your inactive status.');
+            .setDescription('Click the button below to request access and remove your inactive status.')
+            .setThumbnail(interaction.client.user.displayAvatarURL({ dynamic: true }));
 
         const button = new ButtonBuilder()
             .setCustomId('request_access')
             .setLabel('Request Access')
-            .setStyle(ButtonStyle.Primary);
+            .setStyle(ButtonStyle.Primary)
+            .setEmoji('🔓');
 
         const row = new ActionRowBuilder().addComponents(button);
 
-        await blackoutChannel.send({ embeds: [embed], components: [row] });
-        await interaction.editReply('Request access button has been created in the blackout channel.');
+        const sentMessage = await blackoutChannel.send({ embeds: [embed], components: [row] });
+        await sentMessage.pin();
+        await interaction.editReply('Request access button has been created and pinned in the blackout channel.');
     },
 };
 
@@ -62,7 +65,7 @@ async function handleFormSubmission(interaction) {
     const reason = interaction.fields.getTextInputValue('reason_input');
     const activity = interaction.fields.getTextInputValue('activity_input');
 
-    const adminChannel = interaction.guild.channels.cache.find(channel => channel.name === 'admins-spam');
+    const adminChannel = interaction.guild.channels.cache.find(channel => channel.name === 'access-requests');
     if (!adminChannel) {
         return interaction.editReply('Admin channel not found. Please contact an administrator.');
     }
@@ -70,18 +73,22 @@ async function handleFormSubmission(interaction) {
     const reviewEmbed = new EmbedBuilder()
         .setColor(0xFFA500)
         .setTitle('Access Request Review')
-        .setDescription(`User: ${interaction.user.tag}\nReason: ${reason}\nWill be active: ${activity}`)
-        .setTimestamp();
+        .setAuthor({ name: interaction.user.tag, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
+        .setDescription(`**Reason:** ${reason}\n**Will be active:** ${activity}`)
+        .setTimestamp()
+        .setFooter({ text: 'Access Request', iconURL: interaction.client.user.displayAvatarURL() });
 
     const approveButton = new ButtonBuilder()
         .setCustomId(`approve_${interaction.user.id}`)
         .setLabel('Approve')
-        .setStyle(ButtonStyle.Success);
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('✅');
 
     const rejectButton = new ButtonBuilder()
         .setCustomId(`reject_${interaction.user.id}`)
         .setLabel('Reject')
-        .setStyle(ButtonStyle.Danger);
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('❌');
 
     const row = new ActionRowBuilder().addComponents(approveButton, rejectButton);
 
@@ -98,8 +105,13 @@ async function handleReviewDecision(interaction) {
     const verifiedRole = interaction.guild.roles.cache.find(role => role.name === 'Verified');
 
     if (!member || !inactiveRole || !verifiedRole) {
-        return interaction.editReply('Error: Member or roles not found.');
+        return interaction.editReply({ content: 'Error: Member or roles not found.', components: [] });
     }
+
+    const resultEmbed = new EmbedBuilder()
+        .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL({ dynamic: true }) })
+        .setTimestamp()
+        .setFooter({ text: 'Access Request Result', iconURL: interaction.client.user.displayAvatarURL() });
 
     if (action === 'approve') {
         try {
@@ -122,14 +134,24 @@ async function handleReviewDecision(interaction) {
                 await generalChannel.send(`Welcome back, ${member}! Don't forget to pick your roles.`);
             }
 
-            await interaction.editReply({ content: `Access granted for ${member.user.tag}.`, components: [] });
+            resultEmbed
+                .setColor(0x00FF00)
+                .setTitle('Access Granted')
+                .setDescription(`Access has been granted for ${member.user.tag}.`);
+
+            await interaction.editReply({ embeds: [resultEmbed], components: [] });
             await member.send('Your access request has been approved. Welcome back!');
         } catch (error) {
             console.error('Error approving access:', error);
             await interaction.editReply({ content: 'An error occurred while approving access.', components: [] });
         }
     } else if (action === 'reject') {
-        await interaction.editReply({ content: `Access denied for ${member.user.tag}.`, components: [] });
+        resultEmbed
+            .setColor(0xFF0000)
+            .setTitle('Access Denied')
+            .setDescription(`Access has been denied for ${member.user.tag}.`);
+
+        await interaction.editReply({ embeds: [resultEmbed], components: [] });
         await member.send('Your access request has been denied. Please contact an admin for more information.');
     }
 }
