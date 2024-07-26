@@ -33,139 +33,158 @@ module.exports = {
         await sentMessage.pin();
         await interaction.editReply('Request access button has been created and pinned in the blackout channel.');
     },
-};
 
-async function handleRequestAccess(interaction) {
-    const modal = new ModalBuilder()
-        .setCustomId('access_request_form')
-        .setTitle('Access Request Form');
+    async buttonHandler(interaction) {
+        if (interaction.customId === 'request_access') {
+            await this.handleRequestAccess(interaction);
+        } else if (interaction.customId.startsWith('approve_') || interaction.customId.startsWith('reject_')) {
+            await this.handleReviewDecision(interaction);
+        }
+    },
 
-    const reasonInput = new TextInputBuilder()
-        .setCustomId('reason_input')
-        .setLabel('Reason for being inactive')
-        .setStyle(TextInputStyle.Paragraph)
-        .setRequired(true);
+    async modalHandler(interaction) {
+        if (interaction.customId === 'access_request_form') {
+            await this.handleFormSubmission(interaction);
+        }
+    },
 
-    const activityInput = new TextInputBuilder()
-        .setCustomId('activity_input')
-        .setLabel('Are you going to be active?')
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true);
+    async handleRequestAccess(interaction) {
+        const modal = new ModalBuilder()
+            .setCustomId('access_request_form')
+            .setTitle('Access Request Form');
 
-    const firstRow = new ActionRowBuilder().addComponents(reasonInput);
-    const secondRow = new ActionRowBuilder().addComponents(activityInput);
+        const reasonInput = new TextInputBuilder()
+            .setCustomId('reason_input')
+            .setLabel('Reason for being inactive')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true);
 
-    modal.addComponents(firstRow, secondRow);
-    await interaction.showModal(modal);
-}
+        const activityInput = new TextInputBuilder()
+            .setCustomId('activity_input')
+            .setLabel('Are you going to be active?')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
 
-async function handleFormSubmission(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(reasonInput),
+            new ActionRowBuilder().addComponents(activityInput)
+        );
 
-    const reason = interaction.fields.getTextInputValue('reason_input');
-    const activity = interaction.fields.getTextInputValue('activity_input');
+        await interaction.showModal(modal);
+    },
 
-    const adminChannel = interaction.guild.channels.cache.find(channel => channel.name === 'access-requests');
-    if (!adminChannel) {
-        return interaction.editReply('Admin channel not found. Please contact an administrator.');
-    }
+    async handleFormSubmission(interaction) {
+        await interaction.deferReply({ ephemeral: true });
 
-    const reviewEmbed = new EmbedBuilder()
-        .setColor(0xFFA500)
-        .setTitle('Access Request Review')
-        .setAuthor({ name: interaction.user.tag, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
-        .setDescription(`**Reason:** ${reason}\n**Will be active:** ${activity}`)
-        .setTimestamp()
-        .setFooter({ text: 'Access Request', iconURL: interaction.client.user.displayAvatarURL() });
+        const reason = interaction.fields.getTextInputValue('reason_input');
+        const activity = interaction.fields.getTextInputValue('activity_input');
 
-    const approveButton = new ButtonBuilder()
-        .setCustomId(`approve_${interaction.user.id}`)
-        .setLabel('Approve')
-        .setStyle(ButtonStyle.Success)
-        .setEmoji('✅');
+        const adminChannel = interaction.guild.channels.cache.find(channel => channel.name === 'access-requests');
+        if (!adminChannel) {
+            return interaction.editReply('Admin channel not found. Please contact an administrator.');
+        }
 
-    const rejectButton = new ButtonBuilder()
-        .setCustomId(`reject_${interaction.user.id}`)
-        .setLabel('Reject')
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji('❌');
+        const reviewEmbed = new EmbedBuilder()
+            .setColor(0xFFA500)
+            .setTitle('Access Request Review')
+            .setAuthor({ name: interaction.user.tag, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
+            .setDescription(`**Reason:** ${reason}\n**Will be active:** ${activity}`)
+            .setTimestamp()
+            .setFooter({ text: 'Access Request', iconURL: interaction.client.user.displayAvatarURL() });
 
-    const row = new ActionRowBuilder().addComponents(approveButton, rejectButton);
+        const approveButton = new ButtonBuilder()
+            .setCustomId(`approve_${interaction.user.id}`)
+            .setLabel('Approve')
+            .setStyle(ButtonStyle.Success)
+            .setEmoji('✅');
 
-    await adminChannel.send({ embeds: [reviewEmbed], components: [row] });
-    await interaction.editReply('Your request has been submitted for review. Please wait for an admin to process it.');
-}
+        const rejectButton = new ButtonBuilder()
+            .setCustomId(`reject_${interaction.user.id}`)
+            .setLabel('Reject')
+            .setStyle(ButtonStyle.Danger)
+            .setEmoji('❌');
 
-async function handleReviewDecision(interaction) {
-    await interaction.deferUpdate();
+        const row = new ActionRowBuilder().addComponents(approveButton, rejectButton);
 
-    const [action, userId] = interaction.customId.split('_');
-    const member = await interaction.guild.members.fetch(userId);
-    const inactiveRole = interaction.guild.roles.cache.find(role => role.name === 'Inactive ⏸');
-    const verifiedRole = interaction.guild.roles.cache.find(role => role.name === 'Verified');
+        const sentMessage = await adminChannel.send({ embeds: [reviewEmbed], components: [row] });
+        
+        // Set a timeout to invalidate the request after 24 hours
+        setTimeout(async () => {
+            try {
+                const message = await adminChannel.messages.fetch(sentMessage.id);
+                if (message.components.length > 0) {
+                    const timeoutEmbed = EmbedBuilder.from(reviewEmbed)
+                        .setColor(0xFF0000)
+                        .setTitle('Access Request Timed Out')
+                        .setDescription(`${reviewEmbed.data.description}\n\n**This request has timed out and is no longer valid.**`);
 
-    if (!member || !inactiveRole || !verifiedRole) {
-        return interaction.editReply({ content: 'Error: Member or roles not found.', components: [] });
-    }
-
-    const resultEmbed = new EmbedBuilder()
-        .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL({ dynamic: true }) })
-        .setTimestamp()
-        .setFooter({ text: 'Access Request Result', iconURL: interaction.client.user.displayAvatarURL() });
-
-    if (action === 'approve') {
-        try {
-            const userData = await User.findOne({ userId: userId });
-            if (userData) {
-                // User found in database, restore roles
-                for (const roleId of userData.roles) {
-                    await member.roles.add(roleId).catch(console.error);
+                    await message.edit({ embeds: [timeoutEmbed], components: [] });
+                    
+                    await interaction.user.send('Your access request has timed out. Please submit a new request if you still need access.');
                 }
-                await User.deleteOne({ userId: userId });
-            } else {
-                // User not found in database, just add verified role
-                await member.roles.add(verifiedRole);
+            } catch (error) {
+                console.error('Error handling request timeout:', error);
             }
+        }, 24 * 60 * 60 * 1000); // 24 hours
 
-            await member.roles.remove(inactiveRole);
+        await interaction.editReply('Your request has been submitted for review. Please wait for an admin to process it. If not processed within 24 hours, the request will expire.');
+    },
 
-            const generalChannel = interaction.guild.channels.cache.find(channel => channel.name === 'general');
-            if (generalChannel) {
-                await generalChannel.send(`Welcome back, ${member}! Don't forget to pick your roles.`);
+    async handleReviewDecision(interaction) {
+        await interaction.deferUpdate();
+
+        const [action, userId] = interaction.customId.split('_');
+        const member = await interaction.guild.members.fetch(userId);
+        const inactiveRole = interaction.guild.roles.cache.find(role => role.name === 'Inactive ⏸');
+        const verifiedRole = interaction.guild.roles.cache.find(role => role.name === 'Verified');
+
+        if (!member || !inactiveRole || !verifiedRole) {
+            return interaction.editReply({ content: 'Error: Member or roles not found.', components: [] });
+        }
+
+        const resultEmbed = new EmbedBuilder()
+            .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL({ dynamic: true }) })
+            .setTimestamp()
+            .setFooter({ text: 'Access Request Result', iconURL: interaction.client.user.displayAvatarURL() });
+
+        if (action === 'approve') {
+            try {
+                const userData = await User.findOne({ userId: userId });
+                if (userData) {
+                    for (const roleId of userData.roles) {
+                        await member.roles.add(roleId).catch(console.error);
+                    }
+                    await User.deleteOne({ userId: userId });
+                } else {
+                    await member.roles.add(verifiedRole);
+                }
+
+                await member.roles.remove(inactiveRole);
+
+                const generalChannel = interaction.guild.channels.cache.find(channel => channel.name === 'general');
+                if (generalChannel) {
+                    await generalChannel.send(`Welcome back, ${member}! Don't forget to pick your roles.`);
+                }
+
+                resultEmbed
+                    .setColor(0x00FF00)
+                    .setTitle('Access Granted')
+                    .setDescription(`Access has been granted for ${member.user.tag}.`);
+
+                await interaction.editReply({ embeds: [resultEmbed], components: [] });
+                await member.send('Your access request has been approved. Welcome back!');
+            } catch (error) {
+                console.error('Error approving access:', error);
+                await interaction.editReply({ content: 'An error occurred while approving access.', components: [] });
             }
-
+        } else if (action === 'reject') {
             resultEmbed
-                .setColor(0x00FF00)
-                .setTitle('Access Granted')
-                .setDescription(`Access has been granted for ${member.user.tag}.`);
+                .setColor(0xFF0000)
+                .setTitle('Access Denied')
+                .setDescription(`Access has been denied for ${member.user.tag}.`);
 
             await interaction.editReply({ embeds: [resultEmbed], components: [] });
-            await member.send('Your access request has been approved. Welcome back!');
-        } catch (error) {
-            console.error('Error approving access:', error);
-            await interaction.editReply({ content: 'An error occurred while approving access.', components: [] });
+            await member.send('Your access request has been denied. Please contact an admin for more information.');
         }
-    } else if (action === 'reject') {
-        resultEmbed
-            .setColor(0xFF0000)
-            .setTitle('Access Denied')
-            .setDescription(`Access has been denied for ${member.user.tag}.`);
-
-        await interaction.editReply({ embeds: [resultEmbed], components: [] });
-        await member.send('Your access request has been denied. Please contact an admin for more information.');
-    }
-}
-
-module.exports.buttonHandler = async (interaction) => {
-    if (interaction.customId === 'request_access') {
-        await handleRequestAccess(interaction);
-    } else if (interaction.customId.startsWith('approve_') || interaction.customId.startsWith('reject_')) {
-        await handleReviewDecision(interaction);
-    }
-};
-
-module.exports.modalHandler = async (interaction) => {
-    if (interaction.customId === 'access_request_form') {
-        await handleFormSubmission(interaction);
     }
 };
