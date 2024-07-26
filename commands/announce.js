@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ChannelType, PermissionsBitField } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ChannelType, PermissionFlagsBits } = require('discord.js');
 
 const rainbowColors = [
     { name: 'Red', value: '#FF0000' },
@@ -20,15 +20,11 @@ const pastelRainbowColors = [
     { name: 'Pastel Violet', value: '#FFBAF2' }
 ];
 
-function getRandomColor(colorScheme) {
-    const colors = colorScheme === 'pastel' ? pastelRainbowColors : rainbowColors;
-    return colors[Math.floor(Math.random() * colors.length)].value;
-}
-
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('announce')
         .setDescription('Send an announcement to a specified channel')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
         .addChannelOption(option => 
             option.setName('channel')
                 .setDescription('The channel to send the announcement to')
@@ -43,17 +39,17 @@ module.exports = {
                 .setDescription('The title of the announcement')
                 .setRequired(false))
         .addStringOption(option =>
-            option.setName('color_scheme')
-                .setDescription('The color scheme to use')
-                .setRequired(false)
-                .addChoices(
-                    { name: 'Rainbow', value: 'rainbow' },
-                    { name: 'Pastel', value: 'pastel' },
-                    { name: 'Custom', value: 'custom' }
-                ))
-        .addStringOption(option =>
             option.setName('color')
-                .setDescription('Choose a specific color or enter a custom hex code')
+            .setDescription('Choose a color or enter a custom hex code')
+            .setRequired(false)
+            .addChoices(
+                ...rainbowColors.map(c => ({ name: c.name, value: c.value })),
+                ...pastelRainbowColors.map(c => ({ name: c.name, value: c.value })),
+                { name: 'Custom', value: 'custom' }
+            ))
+        .addStringOption(option =>
+            option.setName('custom_color')
+                .setDescription('Custom color hex code (if Custom color is selected)')
                 .setRequired(false))
         .addStringOption(option =>
             option.setName('image_url')
@@ -70,14 +66,9 @@ module.exports = {
 
     async execute(interaction) {
         try {
-            if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
-                return await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
-            }
-
             const channel = interaction.options.getChannel('channel');
             const message = interaction.options.getString('message').replace(/\\n/g, '\n');
             const title = interaction.options.getString('title') || 'Announcement';
-            const colorScheme = interaction.options.getString('color_scheme') || 'rainbow';
             const colorChoice = interaction.options.getString('color');
             const imageUrl = interaction.options.getString('image_url');
             const mentionRole = interaction.options.getRole('mention_role');
@@ -87,7 +78,7 @@ module.exports = {
                 return await interaction.reply({ content: 'Please select a text or announcement channel.', ephemeral: true });
             }
 
-            if (!channel.permissionsFor(interaction.client.user).has(PermissionsBitField.Flags.SendMessages)) {
+            if (!channel.permissionsFor(interaction.client.user).has(PermissionFlagsBits.SendMessages)) {
                 return await interaction.reply({ content: 'I don\'t have permission to send messages in the target channel.', ephemeral: true });
             }
 
@@ -95,16 +86,12 @@ module.exports = {
                 return await interaction.reply({ content: 'The announcement message is too long. Please keep it under 4000 characters.', ephemeral: true });
             }
 
-            let embedColor;
-            if (colorScheme === 'custom') {
-                embedColor = colorChoice || '#000000';
-            } else {
-                const colorArray = colorScheme === 'pastel' ? pastelRainbowColors : rainbowColors;
-                if (colorChoice) {
-                    const chosenColor = colorArray.find(c => c.name.toLowerCase() === colorChoice.toLowerCase());
-                    embedColor = chosenColor ? chosenColor.value : getRandomColor(colorScheme);
+            let embedColor = '#000000'; // Default color
+            if (colorChoice) {
+                if (colorChoice === 'custom') {
+                    embedColor = interaction.options.getString('custom_color') || '#000000';
                 } else {
-                    embedColor = getRandomColor(colorScheme);
+                    embedColor = colorChoice;
                 }
             }
 
@@ -136,9 +123,7 @@ module.exports = {
             await interaction.reply({ content: 'Announcement sent successfully!', ephemeral: true });
         } catch (error) {
             console.error('Error executing announce command:', error);
-            if (!interaction.replied) {
-                await interaction.reply({ content: 'An error occurred while executing the command.', ephemeral: true });
-            }
+            await interaction.reply({ content: 'An error occurred while executing the command.', ephemeral: true });
         }
     },
 };
