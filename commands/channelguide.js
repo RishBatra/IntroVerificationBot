@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -41,7 +41,46 @@ module.exports = {
             }
         });
 
-        await interaction.editReply({ embeds: embeds });
+        let currentPage = 0;
+
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('previous')
+                    .setLabel('Previous')
+                    .setStyle(ButtonStyle.Primary),
+                new ButtonBuilder()
+                    .setCustomId('next')
+                    .setLabel('Next')
+                    .setStyle(ButtonStyle.Primary)
+            );
+
+        const updateMessage = async () => {
+            const embed = embeds[currentPage];
+            embed.setFooter({ text: `Page ${currentPage + 1} of ${embeds.length}` });
+            await interaction.editReply({ embeds: [embed], components: [row] });
+        };
+
+        await updateMessage();
+
+        const collector = interaction.channel.createMessageComponentCollector({ time: 60000 });
+
+        collector.on('collect', async i => {
+            if (i.user.id === interaction.user.id) {
+                if (i.customId === 'previous') {
+                    currentPage = (currentPage - 1 + embeds.length) % embeds.length;
+                } else if (i.customId === 'next') {
+                    currentPage = (currentPage + 1) % embeds.length;
+                }
+                await updateMessage();
+                await i.deferUpdate();
+            }
+        });
+
+        collector.on('end', () => {
+            row.components.forEach(button => button.setDisabled(true));
+            interaction.editReply({ components: [row] });
+        });
     },
 };
 
