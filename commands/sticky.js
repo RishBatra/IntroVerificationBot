@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const StickyMessage = require('../models/stickyMessage');
+const StickyMessage = require('../models/stickymessage');
 
 module.exports = {
   data: new SlashCommandBuilder()
