@@ -1,7 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 const { handleTicket } = require('../handlers/ticketHandler');
 const { handleIntro } = require('../handlers/introHandler');
-const StickyMessage = require('../models/stickyMessage');
+const StickyMessage = require('../models/stickymessage');
 
 module.exports = {
     name: 'messageCreate',
