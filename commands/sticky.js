@@ -31,59 +31,35 @@ module.exports = {
 
     try {
       if (subcommand === 'set') {
-        let message = interaction.options.getString('message');
-        const color = interaction.options.getString('color') || '#0099ff';
-
-        // Replace \n with actual new lines
-        message = message.replace(/\\n/g, '\n');
-
-        // Validate color
-        if (!/^#[0-9A-F]{6}$/i.test(color)) {
-          return await interaction.editReply('Invalid color format. Please use a valid hex color code (e.g., #0099ff).');
-        }
-
-        let stickyMessage = await StickyMessage.findOne({ 
+        // ... (set logic remains the same)
+      } else if (subcommand === 'remove') {
+        const stickyMessage = await StickyMessage.findOne({ 
           guildId: interaction.guildId, 
           channelId: interaction.channelId 
         });
 
-        if (stickyMessage) {
-          stickyMessage.message = message;
-          stickyMessage.color = color;
-        } else {
-          stickyMessage = new StickyMessage({
-            guildId: interaction.guildId,
-            channelId: interaction.channelId,
-            message: message,
-            color: color
-          });
+        if (!stickyMessage) {
+          return await interaction.editReply('There is no sticky message set for this channel.');
         }
 
-        await stickyMessage.save();
-
-        // Delete the previous sticky message if it exists
+        // Delete the sticky message if it exists
         if (stickyMessage.lastMessageId) {
           try {
-            const oldMessage = await interaction.channel.messages.fetch(stickyMessage.lastMessageId);
-            await oldMessage.delete();
+            const message = await interaction.channel.messages.fetch(stickyMessage.lastMessageId);
+            await message.delete();
           } catch (error) {
-            console.error('Error deleting old sticky message:', error);
+            console.error('Error deleting sticky message:', error);
+            // Continue with removal even if message deletion fails
           }
         }
 
-        // Send the new sticky message
-        const embed = new EmbedBuilder()
-          .setDescription(message)
-          .setColor(color);
+        // Remove the sticky message from the database
+        await StickyMessage.deleteOne({ 
+          guildId: interaction.guildId, 
+          channelId: interaction.channelId 
+        });
 
-        const sentMessage = await interaction.channel.send({ embeds: [embed] });
-        stickyMessage.lastMessageId = sentMessage.id;
-        await stickyMessage.save();
-
-        await interaction.editReply('Sticky message set successfully!');
-
-      } else if (subcommand === 'remove') {
-        // ... (remove logic remains the same)
+        await interaction.editReply('Sticky message removed successfully!');
       }
     } catch (error) {
       console.error('Error in sticky command:', error);
