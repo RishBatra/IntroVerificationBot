@@ -32,7 +32,7 @@ module.exports = {
     try {
       if (subcommand === 'set') {
         let message = interaction.options.getString('message');
-        const color = interaction.options.getString('color') || '#0099ff';
+        const color = interaction.options.getString('color') || '#7289DA';
 
         // Replace \n with actual new lines
         message = message.replace(/\\n/g, '\n');
