@@ -31,11 +31,61 @@ module.exports = {
 
     try {
       if (subcommand === 'set') {
-        // ... (set logic remains the same)
+        let message = interaction.options.getString('message');
+        const color = interaction.options.getString('color') || '#0099ff';
+
+        // Replace \n with actual new lines
+        message = message.replace(/\\n/g, '\n');
+
+        // Validate color
+        if (!/^#[0-9A-F]{6}$/i.test(color)) {
+          return await interaction.editReply('Invalid color format. Please use a valid hex color code (e.g., #0099ff).');
+        }
+
+        let stickyMessage = await StickyMessage.findOne({ 
+          guildId: interaction.guild.id, 
+          channelId: interaction.channel.id 
+        });
+
+        if (stickyMessage) {
+          stickyMessage.message = message;
+          stickyMessage.color = color;
+        } else {
+          stickyMessage = new StickyMessage({
+            guildId: interaction.guild.id,
+            channelId: interaction.channel.id,
+            message: message,
+            color: color
+          });
+        }
+
+        await stickyMessage.save();
+
+        // Delete the previous sticky message if it exists
+        if (stickyMessage.lastMessageId) {
+          try {
+            const oldMessage = await interaction.channel.messages.fetch(stickyMessage.lastMessageId);
+            await oldMessage.delete();
+          } catch (error) {
+            console.error('Error deleting old sticky message:', error);
+          }
+        }
+
+        // Send the new sticky message
+        const embed = new EmbedBuilder()
+          .setDescription(message)
+          .setColor(color);
+
+        const sentMessage = await interaction.channel.send({ embeds: [embed] });
+        stickyMessage.lastMessageId = sentMessage.id;
+        await stickyMessage.save();
+
+        await interaction.editReply('Sticky message set successfully!');
+
       } else if (subcommand === 'remove') {
         const stickyMessage = await StickyMessage.findOne({ 
-          guildId: interaction.guildId, 
-          channelId: interaction.channelId 
+          guildId: interaction.guild.id, 
+          channelId: interaction.channel.id 
         });
 
         if (!stickyMessage) {
@@ -55,8 +105,8 @@ module.exports = {
 
         // Remove the sticky message from the database
         await StickyMessage.deleteOne({ 
-          guildId: interaction.guildId, 
-          channelId: interaction.channelId 
+          guildId: interaction.guild.id, 
+          channelId: interaction.channel.id 
         });
 
         await interaction.editReply('Sticky message removed successfully!');
