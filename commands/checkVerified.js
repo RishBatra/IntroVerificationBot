@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
-const { MessageEmbed, MessageActionRow, MessageButton } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -27,7 +27,7 @@ module.exports = {
 
         try {
             // Fetch members with the Verified role only
-            const members = await guild.members.fetch({ cache: false });
+            const members = await guild.members.fetch();
             members.forEach(member => {
                 if (member.roles.cache.size === 2 && member.roles.cache.has(verifiedRole.id)) {
                     membersWithOnlyVerifiedRole.push(member);
@@ -52,7 +52,7 @@ module.exports = {
             const end = start + PAGE_SIZE;
             const pageMembers = membersWithOnlyVerifiedRole.slice(start, end);
 
-            return new MessageEmbed()
+            return new EmbedBuilder()
                 .setTitle(`Members with only the "${VERIFIED_ROLE_NAME}" role`)
                 .setDescription(pageMembers.map(member => `${member.user.tag} (<@${member.user.id}>)`).join('\n'))
                 .setColor('#00FF00')
@@ -60,12 +60,12 @@ module.exports = {
         };
 
         const generateButtons = (page) => {
-            const row = new MessageActionRow();
+            const row = new ActionRowBuilder();
             if (page > 0) {
-                row.addComponents(new MessageButton().setCustomId('prev').setLabel('Previous').setStyle('PRIMARY'));
+                row.addComponents(new ButtonBuilder().setCustomId('prev').setLabel('Previous').setStyle(ButtonStyle.Primary));
             }
             if ((page + 1) * PAGE_SIZE < membersWithOnlyVerifiedRole.length) {
-                row.addComponents(new MessageButton().setCustomId('next').setLabel('Next').setStyle('PRIMARY'));
+                row.addComponents(new ButtonBuilder().setCustomId('next').setLabel('Next').setStyle(ButtonStyle.Primary));
             }
             return row;
         };
@@ -78,6 +78,11 @@ module.exports = {
         const collector = initialMessage.createMessageComponentCollector({ time: 60000 });
 
         collector.on('collect', async i => {
+            if (i.user.id !== interaction.user.id) {
+                await i.reply({ content: "You can't use these buttons.", ephemeral: true });
+                return;
+            }
+
             if (i.customId === 'prev') {
                 currentPage--;
             } else if (i.customId === 'next') {
@@ -90,8 +95,12 @@ module.exports = {
             });
         });
 
-        collector.on('end', () => {
-            initialMessage.edit({ components: [] });
+        collector.on('end', async () => {
+            try {
+                await interaction.editReply({ components: [] });
+            } catch (error) {
+                console.error('Error removing buttons:', error);
+            }
         });
     },
 };
