@@ -7,7 +7,7 @@ module.exports = {
         .setDescription('List members with only the verified role'),
     
     async execute(interaction) {
-        const VERIFIED_ROLE_NAME = 'verified'; // Replace with the name of your verified role
+        const VERIFIED_ROLE_NAME = 'Verified'; // Replace with the name of your verified role
         const guild = interaction.guild;
 
         if (!guild) {
