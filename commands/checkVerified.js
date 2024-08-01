@@ -61,38 +61,45 @@ module.exports = {
 
         const generateButtons = (page) => {
             const row = new ActionRowBuilder();
+            const totalPages = Math.ceil(membersWithOnlyVerifiedRole.length / PAGE_SIZE);
+
             if (page > 0) {
                 row.addComponents(new ButtonBuilder().setCustomId('prev').setLabel('Previous').setStyle(ButtonStyle.Primary));
             }
-            if ((page + 1) * PAGE_SIZE < membersWithOnlyVerifiedRole.length) {
+
+            if (page < totalPages - 1) {
                 row.addComponents(new ButtonBuilder().setCustomId('next').setLabel('Next').setStyle(ButtonStyle.Primary));
             }
-            return row;
+
+            return row.components.length > 0 ? [row] : [];
         };
 
-        const initialMessage = await interaction.editReply({
-            embeds: [generateEmbed(currentPage)],
-            components: [generateButtons(currentPage)]
+        const updateMessage = async () => {
+            const embed = generateEmbed(currentPage);
+            const components = generateButtons(currentPage);
+
+            await interaction.editReply({
+                embeds: [embed],
+                components: components
+            });
+        };
+
+        await updateMessage();
+
+        const collector = interaction.channel.createMessageComponentCollector({ 
+            filter: i => i.user.id === interaction.user.id,
+            time: 60000 
         });
 
-        const collector = initialMessage.createMessageComponentCollector({ time: 60000 });
-
         collector.on('collect', async i => {
-            if (i.user.id !== interaction.user.id) {
-                await i.reply({ content: "You can't use these buttons.", ephemeral: true });
-                return;
-            }
-
             if (i.customId === 'prev') {
                 currentPage--;
             } else if (i.customId === 'next') {
                 currentPage++;
             }
 
-            await i.update({
-                embeds: [generateEmbed(currentPage)],
-                components: [generateButtons(currentPage)]
-            });
+            await updateMessage();
+            await i.deferUpdate();
         });
 
         collector.on('end', async () => {
