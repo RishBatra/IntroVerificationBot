@@ -92,11 +92,39 @@ module.exports = {
       const response = await notionClient.pages.create({
         parent: { database_id: DATABASE_ID },
         properties: {
-          'Business Name': { title: [{ text: { content: businessName } }] },
-          'Category': { select: { name: category } },
-          'Location': { rich_text: [{ text: { content: finalLocation } }] },
+          'Business Name': {
+            title: [
+              {
+                text: {
+                  content: businessName
+                }
+              }
+            ]
+          },
+          'Category': {
+            select: {
+              name: category
+            }
+          },
+          'Location': {
+            rich_text: [
+              {
+                text: {
+                  content: finalLocation
+                }
+              }
+            ]
+          },
           'URL': url ? { url: url } : null,
-          'Contributor': { rich_text: [{ text: { content: interaction.user.username } }] },
+          'Contributor': {
+            rich_text: [
+              {
+                text: {
+                  content: interaction.user.username
+                }
+              }
+            ]
+          },
         },
       });
 
