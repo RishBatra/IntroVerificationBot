@@ -1,6 +1,5 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
 const { Client } = require('@notionhq/client');
-const { PermissionFlagsBits } = require('discord.js');
 
 // Initialize Notion client
 const notionClient = new Client({
@@ -25,8 +24,7 @@ module.exports = {
     .addStringOption(option => 
       option.setName('location')
         .setDescription('The location of the business')
-        .setRequired(true))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+        .setRequired(true)),
   
   async execute(interaction) {
     // Check if the user has the required role
