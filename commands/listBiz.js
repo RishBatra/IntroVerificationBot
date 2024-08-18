@@ -9,6 +9,7 @@ const notionClient = new Client({
 
 const DATABASE_ID = 'c9590a734ae44121ae1f3546b9ab5d61';
 const ALLOWED_ROLE_ID = '692985789608362005';
+const FULL_LIST_URL = 'https://lgbtqindia.notion.site/Queer-Businesses-3c8fba6e280d4553bd01105527649c57';
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -60,7 +61,8 @@ module.exports = {
         .setTitle('Business List')
         .setColor(0x0099FF)
         .setDescription(categoryFilter ? `Filtered by category: ${categoryFilter}` : 'All businesses')
-        .setTimestamp();
+        .setTimestamp()
+        .setFooter({ text: `View full list here: ${FULL_LIST_URL}` });
 
       businesses.forEach(business => {
         let fieldValue = `Category: ${business.category}\nLocation: ${business.location}`;
