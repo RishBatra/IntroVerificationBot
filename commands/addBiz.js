@@ -23,8 +23,12 @@ module.exports = {
         .setRequired(true))
     .addStringOption(option => 
       option.setName('location')
-        .setDescription('The location of the business')
-        .setRequired(true)),
+        .setDescription('The location of the business (optional)')
+        .setRequired(false))
+    .addStringOption(option => 
+      option.setName('url')
+        .setDescription('The website URL of the business (optional)')
+        .setRequired(false)),
   
   async execute(interaction) {
     // Check if the user has the required role
@@ -36,15 +40,36 @@ module.exports = {
 
     const businessName = interaction.options.getString('name');
     const category = interaction.options.getString('category');
-    const location = interaction.options.getString('location');
+    const location = interaction.options.getString('location') || 'Not specified';
+    const url = interaction.options.getString('url');
 
     try {
+      // Fetch current database to check existing categories
+      const { properties } = await notionClient.databases.retrieve({ database_id: DATABASE_ID });
+      const categoryOptions = properties['Category'].select.options;
+
+      // Check if the category exists, if not, add it
+      if (!categoryOptions.some(option => option.name.toLowerCase() === category.toLowerCase())) {
+        await notionClient.databases.update({
+          database_id: DATABASE_ID,
+          properties: {
+            'Category': {
+              select: {
+                options: [...categoryOptions, { name: category }]
+              }
+            }
+          }
+        });
+      }
+
+      // Create the page in Notion
       const response = await notionClient.pages.create({
         parent: { database_id: DATABASE_ID },
         properties: {
           'Business Name': { title: [{ text: { content: businessName } }] },
-          'Category': { rich_text: [{ text: { content: category } }] },
+          'Category': { select: { name: category } },
           'Location': { rich_text: [{ text: { content: location } }] },
+          'URL': url ? { url: url } : null,
           'Contributor': { rich_text: [{ text: { content: interaction.user.username } }] },
         },
       });
