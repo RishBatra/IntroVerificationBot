@@ -20,7 +20,6 @@ module.exports = {
         .setRequired(false)),
 
   async execute(interaction) {
-    // Check if the user has the required role
     if (!interaction.member.roles.cache.has(ALLOWED_ROLE_ID)) {
       return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
     }
@@ -43,12 +42,7 @@ module.exports = {
       const response = await notionClient.databases.query({
         database_id: DATABASE_ID,
         filter: filter,
-        sorts: [
-          {
-            property: 'Business Name',
-            direction: 'ascending',
-          },
-        ],
+        sorts: [{ property: 'Business Name', direction: 'ascending' }],
       });
 
       if (response.results.length === 0) {
@@ -71,7 +65,7 @@ module.exports = {
       businesses.forEach(business => {
         let fieldValue = `Category: ${business.category}\nLocation: ${business.location}`;
         if (business.url) {
-          fieldValue += `\n[Visit Website](${business.url})`;
+          fieldValue += `\nWebsite: ${business.url}`;
         } else {
           fieldValue += '\nNo website provided';
         }
