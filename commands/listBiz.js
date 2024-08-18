@@ -60,9 +60,11 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setTitle('Business List')
         .setColor(0x0099FF)
-        .setDescription(categoryFilter ? `Filtered by category: ${categoryFilter}` : 'All businesses')
-        .setTimestamp()
-        .setFooter({ text: `View full list here: ${FULL_LIST_URL}` });
+        .setDescription(
+          `${categoryFilter ? `Filtered by category: ${categoryFilter}\n\n` : 'All businesses\n\n'}` +
+          `[View full list here](${FULL_LIST_URL})`
+        )
+        .setTimestamp();
 
       businesses.forEach(business => {
         let fieldValue = `Category: ${business.category}\nLocation: ${business.location}`;
