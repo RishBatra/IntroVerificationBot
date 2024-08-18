@@ -21,9 +21,18 @@ module.exports = {
       option.setName('category')
         .setDescription('The category of the business')
         .setRequired(true))
+    .addStringOption(option =>
+      option.setName('location_type')
+        .setDescription('The type of location for the business')
+        .setRequired(true)
+        .addChoices(
+          { name: 'Online', value: 'online' },
+          { name: 'None', value: 'none' },
+          { name: 'Enter Location', value: 'enter' }
+        ))
     .addStringOption(option => 
       option.setName('location')
-        .setDescription('The location of the business (optional)')
+        .setDescription('The specific location of the business (if applicable)')
         .setRequired(false))
     .addStringOption(option => 
       option.setName('url')
@@ -40,8 +49,25 @@ module.exports = {
 
     const businessName = interaction.options.getString('name');
     const category = interaction.options.getString('category');
-    const location = interaction.options.getString('location') || 'Not specified';
+    const locationType = interaction.options.getString('location_type');
+    const specificLocation = interaction.options.getString('location');
     const url = interaction.options.getString('url');
+
+    // Determine the final location value
+    let finalLocation;
+    switch (locationType) {
+      case 'online':
+        finalLocation = 'Online';
+        break;
+      case 'none':
+        finalLocation = 'None';
+        break;
+      case 'enter':
+        finalLocation = specificLocation || 'Not specified';
+        break;
+      default:
+        finalLocation = 'Not specified';
+    }
 
     try {
       // Fetch current database to check existing categories
@@ -68,7 +94,7 @@ module.exports = {
         properties: {
           'Business Name': { title: [{ text: { content: businessName } }] },
           'Category': { select: { name: category } },
-          'Location': { rich_text: [{ text: { content: location } }] },
+          'Location': { rich_text: [{ text: { content: finalLocation } }] },
           'URL': url ? { url: url } : null,
           'Contributor': { rich_text: [{ text: { content: interaction.user.username } }] },
         },
