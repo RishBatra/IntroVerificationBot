@@ -30,7 +30,7 @@ module.exports = {
     const categoryFilter = interaction.options.getString('category');
 
     try {
-      let filter = {};
+      let filter = undefined;
       if (categoryFilter) {
         filter = {
           property: 'Category',
@@ -42,7 +42,7 @@ module.exports = {
 
       const response = await notionClient.databases.query({
         database_id: DATABASE_ID,
-        filter: categoryFilter ? filter : undefined,
+        filter: filter,
         sorts: [
           {
             property: 'Business Name',
@@ -71,7 +71,7 @@ module.exports = {
       businesses.forEach(business => {
         let fieldValue = `Category: ${business.category}\nLocation: ${business.location}`;
         if (business.url) {
-          fieldValue += `\n[Click here to visit business site](${business.url})`;
+          fieldValue += `\n[Visit Website](${business.url})`;
         } else {
           fieldValue += '\nNo website provided';
         }
