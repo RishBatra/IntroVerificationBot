@@ -59,7 +59,7 @@ module.exports = {
         name: page.properties['Business Name'].title[0]?.plain_text || 'Unnamed',
         category: page.properties['Category'].select?.name || 'Uncategorized',
         location: page.properties['Location'].rich_text[0]?.plain_text || 'Not specified',
-        url: page.properties['URL'].url || 'No URL provided'
+        url: page.properties['URL'].url || null
       }));
 
       const embed = new EmbedBuilder()
@@ -69,9 +69,13 @@ module.exports = {
         .setTimestamp();
 
       businesses.forEach(business => {
-        embed.addFields(
-          { name: business.name, value: `Category: ${business.category}\nLocation: ${business.location}\nURL: ${business.url}` }
-        );
+        let fieldValue = `Category: ${business.category}\nLocation: ${business.location}`;
+        if (business.url) {
+          fieldValue += `\n[Click here to visit business site](${business.url})`;
+        } else {
+          fieldValue += '\nNo website provided';
+        }
+        embed.addFields({ name: business.name, value: fieldValue });
       });
 
       await interaction.editReply({ embeds: [embed] });
