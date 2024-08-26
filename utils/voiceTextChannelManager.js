@@ -4,9 +4,21 @@ class VoiceTextChannelManager {
     constructor(client) {
         this.client = client;
         this.voiceTextChannels = new Map();
+        // Add an array of voice channel IDs to exclude
+        this.excludedChannels = [
+            '693018400259047444', // Replace with actual channel IDs
+            '693034620618539068',
+            // Add more channel IDs as needed
+        ];
     }
 
     async getOrCreateTextChannel(voiceChannel) {
+        // Check if the voice channel is in the excluded list
+        if (this.excludedChannels.includes(voiceChannel.id)) {
+            console.log(`Skipping excluded channel: ${voiceChannel.name} (${voiceChannel.id})`);
+            return null;
+        }
+
         const existingChannel = this.voiceTextChannels.get(voiceChannel.id);
         if (existingChannel) return existingChannel;
 
@@ -38,7 +50,14 @@ class VoiceTextChannelManager {
     }
 
     async updateTextChannelVisibility(voiceChannel, member, joined) {
+        // Check if the voice channel is in the excluded list
+        if (this.excludedChannels.includes(voiceChannel.id)) {
+            console.log(`Skipping visibility update for excluded channel: ${voiceChannel.name} (${voiceChannel.id})`);
+            return;
+        }
+
         const textChannel = await this.getOrCreateTextChannel(voiceChannel);
+        if (!textChannel) return; // Skip if no text channel (e.g., for excluded voice channels)
 
         if (joined) {
             await textChannel.permissionOverwrites.edit(member, {
