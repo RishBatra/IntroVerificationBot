@@ -1,17 +1,35 @@
-const TARGET_USER_ID = '00000000000000000000'; // Replace with the actual user ID you want to kick
+const VoiceTextChannelManager = require('../utils/voiceTextChannelManager');
+
+let voiceTextChannelManager;
 
 module.exports = {
     name: 'voiceStateUpdate',
+    once: false,
     execute(oldState, newState) {
-        // Check if the user who joined the voice channel is the target user
-        if (newState.id === TARGET_USER_ID && newState.channel) {
-            try {
-                // Kick the user from the voice channel
-                newState.disconnect();
-                console.log(`Kicked user ${TARGET_USER_ID} from the voice channel.`);
-            } catch (error) {
-                console.error(`Failed to kick user ${TARGET_USER_ID}:`, error);
-            }
+        if (!voiceTextChannelManager) {
+            voiceTextChannelManager = new VoiceTextChannelManager(oldState.client);
         }
+
+        handleVoiceStateUpdate(oldState, newState, voiceTextChannelManager);
     },
 };
+
+async function handleVoiceStateUpdate(oldState, newState, manager) {
+    const oldChannel = oldState.channel;
+    const newChannel = newState.channel;
+    const member = newState.member;
+
+    // User joined a voice channel
+    if (!oldChannel && newChannel) {
+        await manager.updateTextChannelVisibility(newChannel, member, true);
+    }
+    // User left a voice channel
+    else if (oldChannel && !newChannel) {
+        await manager.updateTextChannelVisibility(oldChannel, member, false);
+    }
+    // User moved between voice channels
+    else if (oldChannel && newChannel && oldChannel.id !== newChannel.id) {
+        await manager.updateTextChannelVisibility(oldChannel, member, false);
+        await manager.updateTextChannelVisibility(newChannel, member, true);
+    }
+}
