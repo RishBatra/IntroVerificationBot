@@ -56,11 +56,37 @@ class VoiceTextChannelManager {
 
     async purgeAndHideTextChannel(textChannel) {
         try {
-            await textChannel.bulkDelete(100);
+            const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+            let messagesDeleted = 0;
+
+            // Fetch messages
+            const messages = await textChannel.messages.fetch({ limit: 100 });
+            
+            // Separate recent and old messages
+            const recentMessages = messages.filter(msg => msg.createdTimestamp > twoWeeksAgo);
+            const oldMessages = messages.filter(msg => msg.createdTimestamp <= twoWeeksAgo);
+
+            // Bulk delete recent messages if any
+            if (recentMessages.size > 0) {
+                await textChannel.bulkDelete(recentMessages);
+                messagesDeleted += recentMessages.size;
+                console.log(`Bulk deleted ${recentMessages.size} recent messages from ${textChannel.name}`);
+            }
+
+            // Delete old messages one by one
+            for (const message of oldMessages.values()) {
+                await message.delete().catch(console.error);
+                messagesDeleted++;
+            }
+
+            console.log(`Deleted ${oldMessages.size} old messages individually from ${textChannel.name}`);
+            console.log(`Total messages deleted from ${textChannel.name}: ${messagesDeleted}`);
+
         } catch (error) {
             console.error('Error purging messages:', error);
         }
 
+        // Hide the channel
         await textChannel.permissionOverwrites.edit(textChannel.guild.roles.everyone, {
             ViewChannel: false,
         });
