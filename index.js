@@ -1,93 +1,77 @@
-// Require the discord.js module
-const Discord = require('discord.js');
-
-//Setting Intents
-const { Client, GatewayIntentBits } = require('discord.js');
-
-//Getting env variables
+const { Client, GatewayIntentBits, Collection, ActivityType, PresenceUpdateStatus, Partials } = require('discord.js');
+const { exec } = require('child_process');
 require('dotenv').config();
+const commandHandler = require('./handlers/commandHandler');
+const eventHandler = require('./handlers/eventHandler');
+const mongoose = require('mongoose');
 
-// Create a new Discord client
+mongoose.connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+}).then(() => {
+    console.log('Connected to MongoDB');
+}).catch(err => {
+    console.error('Failed to connect to MongoDB', err);
+});
+
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildPresences,
-    GatewayIntentBits.GuildMessageTyping,
-    GatewayIntentBits.MessageContent, // Be cautious with this intent due to privacy
-    // Add any other intents your bot needs
-    GatewayIntentBits.Guilds, // For managing roles, channels, and generally necessary
-    GatewayIntentBits.GuildMembers, // For managing members, roles, nicknames, etc.
-    GatewayIntentBits.GuildModeration, // For listening to ban and unban events
-    GatewayIntentBits.GuildMessages, // For sending and receiving messages in guilds
-    GatewayIntentBits.GuildMessageReactions, // For adding reactions to messages
-    GatewayIntentBits.MessageContent, // To access the content of messages
-    GatewayIntentBits.GuildWebhooks, // For managing webhooks
-    GatewayIntentBits.GuildInvites, // For managing invites
-  ],
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildPresences,
+        GatewayIntentBits.GuildMessageTyping,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildModeration,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.GuildWebhooks,
+        GatewayIntentBits.GuildInvites,
+        GatewayIntentBits.DirectMessages, 
+        GatewayIntentBits.GuildVoiceStates
+    ],
+    partials: [Partials.Channel] // Required to read DMs
 });
 
-
-// Define acceptable values
-const genders = ['Male', 'Female', 'Non-binary', 'Genderqueer', 'Genderfluid', 'Transgender', 'Trans', 'Trans male', 'Trans female', 'Agender', 'Bigender', 'Pangender', 'Questioning']; // Add more as needed
-const pronouns = ['He/him', 'She/her', 'They/them', 'Ze/hir', 'Ze/zir', 'Xe/xem']; // Add more as needed
-const orientations = ['Homosexual', 'Bisexual', 'Asexual', 'Pansexual', 'Queer', 'bi', 'bi-sexual']; // Add more as needed
-
-client.once('ready', () => {
-    console.log('Ready!');
-});
-
-client.on('messageCreate', async message => {
-    // Ensure message is in the specific channel
-    if (message.channel.name === 'intros') {
-        // Split message content into lines and then into fields
-        const lines = message.content.split('\n').map(line => line.trim());
-        let errors = [];
-
-        // Validation functions
-        const validateAge = (line) => {
-            const age = parseInt(line.split(':')[1].trim(), 10);
-            return age >= 0 && age <= 100;
-        };
-
-        const validateInList = (line, list) => {
-            const value = line.split(':')[1].trim();
-            return list.includes(value);
-        };
-
-        const validateExists = (line) => line && line.split(':')[1].trim().length > 0;
-
-        // Perform validations
-        if (!lines.some(line => line.startsWith('Age:') && validateAge(line))) {
-            errors.push('Age must be between 0-100.');
-        }
-
-        if (!lines.some(line => line.startsWith('Gender:') && validateInList(line, genders))) {
-            errors.push('Gender is not recognized.');
-        }
-
-        if (!lines.some(line => line.startsWith('Pronouns:') && validateInList(line, pronouns))) {
-            errors.push('Pronouns are not recognized.');
-        }
-
-        if (!lines.some(line => line.startsWith('Orientation:') && validateInList(line, orientations))) {
-            errors.push('Orientation is not recognized.');
-        }
-
-        if (!lines.some(line => line.startsWith('Location:') && validateExists(line))) {
-            errors.push('Location is required.');
-        }
-
-        // Optional fields like Education/Career, Hobbies, and Trivia don't necessarily need validation for existence but can be validated for format if needed.
-
-        // Send feedback based on validation
-        if (errors.length > 0) {
-            await message.reply(`Please correct your introduction:\n${errors.join('\n')}`);
-        } else {
-            // If everything is correct, you might want to send a confirmation or perform further actions
-        }
+// Run the deploy-commands.js script
+exec('node deploy-command.js', (error, stdout, stderr) => {
+    if (error) {
+        console.error(`Error executing deploy-commands.js: ${error}`);
+        return;
     }
+    console.log(`deploy-commands.js output: ${stdout}`);
+    if (stderr) {
+        console.error(`deploy-commands.js stderr: ${stderr}`);
+    }
+
+    // Load commands and events after deploying commands
+    commandHandler(client);
+    eventHandler(client);
+
+    client.once('ready', () => {
+        console.log(`Logged in as ${client.user.tag} and ready to go!`);
+
+        // Set the bot's initial status and activity
+        client.user.setPresence({
+            activities: [{ name: 'a game', type: ActivityType.Playing }],
+            status: PresenceUpdateStatus.Online,
+        });
+
+        // Example of changing status periodically
+        const statuses = [
+            { name: 'Hum gay hain hume server ke liye log chaiye', type: ActivityType.Playing },
+            // { name: 'Hum gay hain hume server ke liye log chaiye', type: ActivityType.Playing },
+            // { name: 'Server ke loog', type: ActivityType.Watching },
+            // { name: 'Hum gay hain hume server ke liye log chaiye', type: ActivityType.Watching },
+            // { name: 'LGBTQIndiA zindabad', type: ActivityType.Listening },
+        ];
+
+        setInterval(() => {
+            const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
+            client.user.setActivity(randomStatus.name, { type: randomStatus.type });
+        }, 10000); // Change status every 10 seconds
+    });
+
+    client.login(process.env.MY_DISCORD_BOT_TOKEN).catch(error => {
+        console.error("Error logging in:", error);
+    });
 });
-
-// Login to Discord with your app's token
-client.login(process.env.DISCORD_BOT_TOKEN);
-
