@@ -5,37 +5,21 @@ class VoiceTextChannelManager {
         this.client = client;
         this.voiceTextChannels = new Collection();
         this.channelCooldowns = new Collection();
-        this.channelLocks = new Set(); // Lock set for preventing duplicates
         this.excludedChannels = [
             '693018400259047444',
             '693034620618539068',
         ];
-
+        
         // Cleanup interval for stale channels (every 6 hours)
         setInterval(() => this.cleanupStaleChannels(), 6 * 60 * 60 * 1000);
     }
 
     async getOrCreateTextChannel(voiceChannel) {
-        if (this.excludedChannels.includes(voiceChannel.id)) {
-            return null;
-        }
-
-        if (this.channelLocks.has(voiceChannel.id)) {
-            // Wait for the lock to be released
-            return new Promise((resolve) => {
-                const interval = setInterval(() => {
-                    if (!this.channelLocks.has(voiceChannel.id)) {
-                        clearInterval(interval);
-                        resolve(this.voiceTextChannels.get(voiceChannel.id) || null);
-                    }
-                }, 100);
-            });
-        }
-
-        // Lock the channel ID
-        this.channelLocks.add(voiceChannel.id);
-
         try {
+            if (this.excludedChannels.includes(voiceChannel.id)) {
+                return null;
+            }
+
             // Check cooldown to prevent spam
             const cooldown = this.channelCooldowns.get(voiceChannel.id);
             if (cooldown && Date.now() - cooldown < 10000) { // 10 seconds cooldown
@@ -56,11 +40,10 @@ class VoiceTextChannelManager {
                 }
             }
 
-            // Fetch the latest parent state and look for an existing channel
-            await voiceChannel.parent?.children.fetch();
+            // Look for existing channel
             textChannel = voiceChannel.parent?.children.cache.find(
-                channel =>
-                    channel.type === ChannelType.GuildText &&
+                channel => 
+                    channel.type === ChannelType.GuildText && 
                     channel.name === `${voiceChannel.name}-text`
             );
 
@@ -69,7 +52,7 @@ class VoiceTextChannelManager {
                 return textChannel;
             }
 
-            // Create a new channel
+            // Create new channel with rate limit handling
             textChannel = await voiceChannel.guild.channels.create({
                 name: `${voiceChannel.name}-text`,
                 type: ChannelType.GuildText,
@@ -96,9 +79,6 @@ class VoiceTextChannelManager {
         } catch (error) {
             console.error(`Error in getOrCreateTextChannel: ${error.message}`);
             return null;
-        } finally {
-            // Release the lock
-            this.channelLocks.delete(voiceChannel.id);
         }
     }
 
