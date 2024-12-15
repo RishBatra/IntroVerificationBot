@@ -21,7 +21,7 @@ module.exports = {
 
             const target = interaction.options.getMember('target');
             const reason = interaction.options.getString('reason');
-            const logChannel = interaction.guild.channels.cache.get('YOUR_LOG_CHANNEL_ID');
+            const logChannel = interaction.guild.channels.cache.get('1313354922074570782');
 
             // Role checks
             const waitingRole = interaction.guild.roles.cache.get('692985716040532011');
