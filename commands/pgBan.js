@@ -1,4 +1,3 @@
-// commands/moderation/pgban.js
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 
 module.exports = {
@@ -13,7 +12,9 @@ module.exports = {
             option.setName('reason')
                 .setDescription('Reason for the ban')
                 .setRequired(true))
-        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
+        // Remove the default permissions to make it visible to everyone
+        // We'll handle permissions in the execute function
+        //.setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
 
     async execute(interaction) {
         try {
@@ -33,6 +34,7 @@ module.exports = {
                 return await interaction.editReply('User not found in the server.');
             }
 
+            // Check for mod role instead of ban permissions
             if (!interaction.member.roles.cache.has(modRole.id)) {
                 return await interaction.editReply('You do not have permission to use this command.');
             }
