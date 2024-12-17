@@ -11,12 +11,9 @@ module.exports = {
         .addStringOption(option =>
             option.setName('reason')
                 .setDescription('Reason for the ban')
-                .setRequired(true))
-        // Remove the default permissions to make it visible to everyone
-        // We'll handle permissions in the execute function
-        //.setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
+                .setRequired(true)),
 
-    async execute(interaction) {
+    execute: async function(interaction) {
         try {
             await interaction.deferReply({ ephemeral: true });
 
@@ -34,7 +31,7 @@ module.exports = {
                 return await interaction.editReply('User not found in the server.');
             }
 
-            // Check for mod role instead of ban permissions
+            // Check for mod role
             if (!interaction.member.roles.cache.has(modRole.id)) {
                 return await interaction.editReply('You do not have permission to use this command.');
             }
@@ -64,5 +61,5 @@ module.exports = {
             console.error(error);
             await interaction.editReply('An error occurred while executing the command.');
         }
-    },
+    }
 };
