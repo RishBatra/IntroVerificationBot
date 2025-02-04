@@ -10,7 +10,7 @@ class VoiceTextChannelManager {
             '693034620618539068',
         ];
         
-        // Cleanup interval for stale channels (every 6 hours)
+        // Run cleanup every 6 hours
         setInterval(() => this.cleanupStaleChannels(), 6 * 60 * 60 * 1000);
     }
 
@@ -20,16 +20,14 @@ class VoiceTextChannelManager {
                 return null;
             }
 
-            // Check cooldown to prevent spam
+            // Prevent rapid-fire calls
             const cooldown = this.channelCooldowns.get(voiceChannel.id);
-            if (cooldown && Date.now() - cooldown < 10000) { // 10 seconds cooldown
+            if (cooldown && Date.now() - cooldown < 10000) { // 10-second cooldown
                 return this.voiceTextChannels.get(voiceChannel.id);
             }
-
-            // Update cooldown
             this.channelCooldowns.set(voiceChannel.id, Date.now());
 
-            // Check cache first
+            // Check our cache
             let textChannel = this.voiceTextChannels.get(voiceChannel.id);
             if (textChannel) {
                 try {
@@ -40,19 +38,18 @@ class VoiceTextChannelManager {
                 }
             }
 
-            // Look for existing channel
+            // Try to find an existing channel by name
             textChannel = voiceChannel.parent?.children.cache.find(
-                channel => 
-                    channel.type === ChannelType.GuildText && 
+                channel =>
+                    channel.type === ChannelType.GuildText &&
                     channel.name === `${voiceChannel.name}-text`
             );
-
             if (textChannel) {
                 this.voiceTextChannels.set(voiceChannel.id, textChannel);
                 return textChannel;
             }
 
-            // Create new channel with rate limit handling
+            // Create a new text channel
             textChannel = await voiceChannel.guild.channels.create({
                 name: `${voiceChannel.name}-text`,
                 type: ChannelType.GuildText,
@@ -90,31 +87,34 @@ class VoiceTextChannelManager {
             if (!textChannel) return;
 
             if (joined) {
+                // Grant the member permission to view and send messages
                 await textChannel.permissionOverwrites.edit(member, {
                     ViewChannel: true,
                     SendMessages: true,
                 }).catch(console.error);
 
-                // Send welcome message
+                // Send a welcome message (optional)
                 await textChannel.send({
                     content: `Welcome ${member}! This channel is linked to ${voiceChannel.name}.`,
                     allowedMentions: { users: [member.id] }
                 }).catch(() => {});
             } else {
+                // Remove the member's permission override
                 await textChannel.permissionOverwrites.delete(member)
                     .catch(console.error);
             }
 
-            // Check if channel is empty
+            // When no members are in the voice channel, purge its messages
             if (voiceChannel.members.size === 0) {
-                await this.purgeAndHideTextChannel(textChannel);
+                await this.purgeChannelMessages(textChannel);
             }
         } catch (error) {
             console.error(`Error in updateTextChannelVisibility: ${error.message}`);
         }
     }
 
-    async purgeAndHideTextChannel(textChannel) {
+    // This method purges all messages in the text channel
+    async purgeChannelMessages(textChannel) {
         try {
             const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
             const batchSize = 100;
@@ -124,15 +124,15 @@ class VoiceTextChannelManager {
                 const messages = await textChannel.messages.fetch({ limit: batchSize });
                 if (messages.size === 0) break;
 
+                // Bulk-delete messages that are less than 2 weeks old
                 const recentMessages = messages.filter(msg => msg.createdTimestamp > twoWeeksAgo);
-                const oldMessages = messages.filter(msg => msg.createdTimestamp <= twoWeeksAgo);
-
                 if (recentMessages.size > 0) {
-                    await textChannel.bulkDelete(recentMessages, true)
-                        .catch(console.error);
+                    await textChannel.bulkDelete(recentMessages, true).catch(console.error);
                     totalDeleted += recentMessages.size;
                 }
 
+                // For messages older than 2 weeks, delete one by one
+                const oldMessages = messages.filter(msg => msg.createdTimestamp <= twoWeeksAgo);
                 for (const [, message] of oldMessages) {
                     await message.delete().catch(() => {});
                     totalDeleted++;
@@ -141,23 +141,22 @@ class VoiceTextChannelManager {
                 if (messages.size < batchSize) break;
             }
 
-            await textChannel.permissionOverwrites.edit(textChannel.guild.roles.everyone, {
-                ViewChannel: false,
-            });
-
-            console.log(`Cleaned up ${totalDeleted} messages from ${textChannel.name}`);
+            console.log(`Purged ${totalDeleted} messages from ${textChannel.name}`);
         } catch (error) {
-            console.error(`Error in purgeAndHideTextChannel: ${error.message}`);
+            console.error(`Error in purgeChannelMessages: ${error.message}`);
         }
     }
 
     async cleanupStaleChannels() {
         try {
+            // For each cached text channel, if the corresponding voice channel is empty (or missing), purge its messages.
             for (const [voiceId, textChannel] of this.voiceTextChannels) {
                 const voiceChannel = this.client.channels.cache.get(voiceId);
                 if (!voiceChannel || voiceChannel.members.size === 0) {
-                    await this.purgeAndHideTextChannel(textChannel);
-                    this.voiceTextChannels.delete(voiceId);
+                    await this.purgeChannelMessages(textChannel);
+                    // Optionally, leave the text channel in the cache so it can be reused later.
+                    // If you prefer to force a new channel creation next time, uncomment the following line:
+                    // this.voiceTextChannels.delete(voiceId);
                 }
             }
         } catch (error) {
