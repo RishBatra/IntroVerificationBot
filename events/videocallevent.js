@@ -26,14 +26,19 @@ module.exports = {
         if (newState.channelId === videoChannelId) {
             const hasVideo = newState.selfVideo || newState.streaming;
             
-            if (!hasVideo && oldState.channelId !== waitingRoomId) {
-                // Only move to waiting room if they didn't just come from there
-                await member.voice.setChannel(waitingRoomId);
-                await member.send('📹 Please enable your video to join!');
-                return;
+            // Immediate check when joining video channel
+            if (!hasVideo) {
+                try {
+                    await member.voice.setChannel(waitingRoomId);
+                    await member.send('📹 Please enable your video to join!');
+                    return;
+                } catch (error) {
+                    console.error('Error moving user to waiting room:', error);
+                    return;
+                }
             }
 
-            // Start 5-minute timer only if video is enabled
+            // Start 5-minute timer for continuous monitoring
             const timer = setTimeout(async () => {
                 const currentState = guild.members.cache.get(member.id)?.voice;
                 if (currentState?.channelId === videoChannelId && 
@@ -62,12 +67,18 @@ module.exports = {
            (newState.selfVideo || newState.streaming)) {
             const delayTimer = setTimeout(async () => {
                 const currentState = guild.members.cache.get(member.id)?.voice;
-                if (currentState?.channelId === waitingRoomId && 
-                   (currentState.selfVideo || currentState.streaming)) {
-                    await member.voice.setChannel(videoChannelId);
+                if (currentState?.channelId === waitingRoomId) {
+                    // Double check if video is still enabled
+                    if (currentState.selfVideo || currentState.streaming) {
+                        try {
+                            await member.voice.setChannel(videoChannelId);
+                        } catch (error) {
+                            console.error('Error moving user to video channel:', error);
+                        }
+                    }
                 }
                 promotionDelays.delete(member.id);
-            }, 1000); // 1 second delay
+            }, 1500); // Increased to 1.5 seconds for more reliable checking
 
             promotionDelays.set(member.id, delayTimer);
         }
