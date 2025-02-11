@@ -16,7 +16,7 @@ module.exports = {
 
         // Ignore bot-initiated moves and non-event channels
         if (member.user.bot) return;
-        if (![waitingRoomId, videoChannelId].includes(newState.channelId) && 
+        if (![waitingRoomId, videoChannelId].includes(newState.channelId) &&
             ![waitingRoomId, videoChannelId].includes(oldState.channelId)) return;
 
         // Handle video channel joins
@@ -33,11 +33,11 @@ module.exports = {
                 return;
             }
 
-            // Clear existing timer
+            // Clear any existing timer for this member
             const existingTimer = videoTimers.get(member.id);
             if (existingTimer) clearTimeout(existingTimer.timer);
 
-            // Start fresh timer with state validation
+            // Start a fresh timer to validate video activity after 5 minutes
             videoTimers.set(member.id, {
                 timer: setTimeout(async () => {
                     const currentState = guild.voiceStates.cache.get(member.id);
@@ -55,7 +55,7 @@ module.exports = {
             });
         }
 
-        // Handle leaving video channel
+        // Handle leaving the video channel by clearing any active timers
         if (oldState.channelId === videoChannelId && newState.channelId !== videoChannelId) {
             const timerData = videoTimers.get(member.id);
             if (timerData) {
@@ -64,19 +64,19 @@ module.exports = {
             }
         }
 
-        // Auto-promote from waiting room with video
-        if (newState.channelId === waitingRoomId && 
+        // Auto-promote a member from the waiting room if they have video enabled
+        if (newState.channelId === waitingRoomId &&
             (newState.selfVideo || newState.streaming) &&
             oldState.channelId !== videoChannelId) {
             
-            // Cooldown and state validation
+            // Check for a short cooldown to avoid rapid state changes
             const lastMove = videoTimers.get(member.id)?.lastCheck || 0;
             if (now - lastMove < 3000) return;
 
             try {
-                // Force refresh voice state
-                await guild.voiceStates.fetch(member.id);
-                
+                // Removed: await guild.voiceStates.fetch(member.id);
+                // Discord automatically updates voice states, so fetching isn't necessary.
+
                 await member.voice.setChannel(videoChannelId);
                 videoTimers.set(member.id, {
                     timer: setTimeout(async () => {
