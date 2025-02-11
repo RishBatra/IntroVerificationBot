@@ -5,7 +5,7 @@ const VideoEvent = require('../models/videocallevent');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('cleanup-event')
-        .setDescription('Remove video event channels and cleanup event roles'),
+        .setDescription('Remove video event channels and clean up event roles'),
     async execute(interaction) {
         const guild = interaction.guild;
 
@@ -18,7 +18,7 @@ module.exports = {
         }
 
         try {
-            // Delete the channels associated with the event
+            // Delete event channels (waiting room, video channel, and category if available)
             const channels = [
                 guild.channels.cache.get(eventData.waitingRoomId),
                 guild.channels.cache.get(eventData.videoChannelId),
