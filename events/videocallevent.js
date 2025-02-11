@@ -16,13 +16,15 @@ module.exports = {
 
         // Handle video channel join
         if (newState.channelId === videoChannelId) {
-            if (!newState.selfVideo && !newState.streaming) {
+            const hasVideo = newState.selfVideo || newState.streaming;
+            
+            if (!hasVideo) {
                 await member.voice.setChannel(waitingRoomId);
                 await member.send('📹 Please enable your video to join!');
                 return;
             }
 
-            // Start 5-minute timer
+            // Start 5-minute timer only if video is enabled
             const timer = setTimeout(async () => {
                 const currentState = guild.members.cache.get(member.id)?.voice;
                 if (currentState?.channelId === videoChannelId && 

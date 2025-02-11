@@ -18,22 +18,23 @@ module.exports = {
         }
 
         try {
-            // Delete channels
-            const category = guild.channels.cache.get(eventData.categoryId);
-            const waitingRoom = guild.channels.cache.get(eventData.waitingRoomId);
-            const videoChannel = guild.channels.cache.get(eventData.videoChannelId);
+            // Delete channels first
+            const channels = [
+                guild.channels.cache.get(eventData.waitingRoomId),
+                guild.channels.cache.get(eventData.videoChannelId),
+                guild.channels.cache.get(eventData.categoryId)
+            ].filter(c => c);
 
-            await Promise.all([
-                category?.delete(),
-                waitingRoom?.delete(),
-                videoChannel?.delete()
-            ]);
+            // Delete in sequence to prevent orphaned channels
+            for (const channel of channels) {
+                await channel?.delete().catch(console.error);
+            }
 
-            // Remove from DB
+            // Remove from DB after successful deletion
             await VideoEvent.deleteOne({ guildId: guild.id });
 
             await interaction.reply({
-                content: '✅ Successfully cleaned up event channels!',
+                content: '✅ Successfully cleaned up all event channels!',
                 ephemeral: true
             });
 
