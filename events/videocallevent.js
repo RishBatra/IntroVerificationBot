@@ -3,9 +3,28 @@ const { Events } = require('discord.js');
 const VideoEvent = require('../models/videocallevent');
 const videoTimers = new Map();
 
-// This set is used to flag members who are being auto-promoted from the waiting room.
-// When a member is auto-promoted, we delay the video-check to allow Discord to update the state.
+// A set to flag members that are being auto-promoted from the waiting room.
 const autoPromoted = new Set();
+
+/**
+ * Polls for the member's voice state to show an active video (either selfVideo or streaming)
+ * @param {Guild} guild - The guild object.
+ * @param {string} memberId - The ID of the member to check.
+ * @param {number} interval - How often to check (in milliseconds).
+ * @param {number} timeout - How long to wait in total (in milliseconds).
+ * @returns {Promise<boolean>} - Resolves to true if video is active within the timeout, false otherwise.
+ */
+async function waitForVideoState(guild, memberId, interval = 500, timeout = 2500) {
+    const iterations = Math.floor(timeout / interval);
+    for (let i = 0; i < iterations; i++) {
+        const state = guild.voiceStates.cache.get(memberId);
+        if (state && (state.selfVideo || state.streaming)) {
+            return true;
+        }
+        await new Promise(resolve => setTimeout(resolve, interval));
+    }
+    return false;
+}
 
 module.exports = {
     name: Events.VoiceStateUpdate,
@@ -18,24 +37,22 @@ module.exports = {
         const member = newState.member;
         const now = Date.now();
 
-        // Ignore bot-initiated moves and voice updates that don't involve our two channels.
+        // Ignore bot-initiated moves and voice updates that don't involve our channels.
         if (member.user.bot) return;
         if (![waitingRoomId, videoChannelId].includes(newState.channelId) &&
             ![waitingRoomId, videoChannelId].includes(oldState.channelId)) return;
 
         // -------------------------
-        // Handle joins to the video channel
+        // Handle joining the video channel
         // -------------------------
         if (newState.channelId === videoChannelId) {
-            // If the member is coming from the waiting room via auto-promotion,
-            // delay the video check to let Discord update the state.
+            // If the member is auto-promoted (i.e. coming from the waiting room)
             if (oldState.channelId === waitingRoomId && autoPromoted.has(member.id)) {
+                // Wait 500ms before polling the video state
                 setTimeout(async () => {
-                    // Remove the flag so that subsequent checks aren’t delayed.
                     autoPromoted.delete(member.id);
-                    const updatedState = guild.voiceStates.cache.get(member.id);
-                    if (!updatedState) return;
-                    const hasVideo = updatedState.selfVideo || updatedState.streaming;
+                    // Poll for video state up to 2.5 seconds (500ms intervals)
+                    const hasVideo = await waitForVideoState(guild, member.id, 500, 2500);
                     if (!hasVideo) {
                         await member.voice.setChannel(waitingRoomId).catch(console.error);
                         await member.send('📹 Please enable video to join!').catch(() => {});
@@ -44,26 +61,26 @@ module.exports = {
                     // Clear any existing timer for this member
                     const existingTimer = videoTimers.get(member.id);
                     if (existingTimer) clearTimeout(existingTimer.timer);
-                    // Start a fresh timer for future state validation
+                    // Start a new timer for ongoing validation (5 minutes)
                     videoTimers.set(member.id, {
                         timer: setTimeout(async () => {
                             const currentState = guild.voiceStates.cache.get(member.id);
                             if (!currentState || currentState.channelId !== videoChannelId) return;
                             if (!currentState.selfVideo && !currentState.streaming) {
                                 await member.voice.setChannel(waitingRoomId).catch(console.error);
-                                member.send('⏲️ Moved to waiting room due to inactive video!').catch(() => {});
+                                await member.send('⏲️ Moved to waiting room due to inactive video!').catch(() => {});
                             }
                             videoTimers.delete(member.id);
-                        }, 300000), // 5 minutes
+                        }, 300000), // 300,000ms = 5 minutes
                         lastCheck: Date.now()
                     });
-                }, 500); // 500ms delay
+                }, 500);
                 return;
             } else {
-                // For normal (non-auto-promoted) joins to the video channel:
+                // For a normal join to the video channel:
                 const hasVideo = newState.selfVideo || newState.streaming;
                 if (!hasVideo) {
-                    // Only send the DM if the member wasn’t coming from the waiting room.
+                    // Only move back if the member is not coming directly from the waiting room.
                     if (oldState.channelId !== waitingRoomId) {
                         await member.voice.setChannel(waitingRoomId).catch(console.error);
                         await member.send('📹 Please enable video to join!').catch(() => {});
@@ -73,14 +90,14 @@ module.exports = {
                 // Clear any existing timer
                 const existingTimer = videoTimers.get(member.id);
                 if (existingTimer) clearTimeout(existingTimer.timer);
-                // Start a fresh timer to re-validate video state after 5 minutes
+                // Set a new timer for ongoing validation (5 minutes)
                 videoTimers.set(member.id, {
                     timer: setTimeout(async () => {
                         const currentState = guild.voiceStates.cache.get(member.id);
                         if (!currentState || currentState.channelId !== videoChannelId) return;
                         if (!currentState.selfVideo && !currentState.streaming) {
                             await member.voice.setChannel(waitingRoomId).catch(console.error);
-                            member.send('⏲️ Moved to waiting room due to inactive video!').catch(() => {});
+                            await member.send('⏲️ Moved to waiting room due to inactive video!').catch(() => {});
                         }
                         videoTimers.delete(member.id);
                     }, 300000),
@@ -101,7 +118,7 @@ module.exports = {
         }
 
         // -------------------------
-        // Auto-promote from waiting room if video is enabled
+        // Auto-promote from the waiting room if video is enabled
         // -------------------------
         if (newState.channelId === waitingRoomId &&
             (newState.selfVideo || newState.streaming) &&
@@ -112,17 +129,16 @@ module.exports = {
             if (now - lastMove < 3000) return;
 
             try {
-                // Mark this member as auto-promoted so that we can delay the video check
+                // Mark this member as auto-promoted.
                 autoPromoted.add(member.id);
                 await member.voice.setChannel(videoChannelId);
-                // Set a timer to validate that video remains enabled.
                 videoTimers.set(member.id, {
                     timer: setTimeout(async () => {
                         const currentState = guild.voiceStates.cache.get(member.id);
                         if (!currentState || currentState.channelId !== videoChannelId) return;
                         if (!currentState.selfVideo && !currentState.streaming) {
                             await member.voice.setChannel(waitingRoomId).catch(console.error);
-                            member.send('⏲️ Moved to waiting room due to inactive video!').catch(() => {});
+                            await member.send('⏲️ Moved to waiting room due to inactive video!').catch(() => {});
                         }
                         videoTimers.delete(member.id);
                     }, 300000),
