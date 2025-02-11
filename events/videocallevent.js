@@ -1,6 +1,7 @@
 const { Events } = require('discord.js');
 const VideoEvent = require('../models/videocallevent');
 const videoTimers = new Map();
+const promotionDelays = new Map();
 
 module.exports = {
     name: Events.VoiceStateUpdate,
@@ -14,11 +15,19 @@ module.exports = {
         const { waitingRoomId, videoChannelId } = eventData;
         const member = newState.member;
 
+        // Clear any existing promotion delay timer
+        const existingDelay = promotionDelays.get(member.id);
+        if (existingDelay) {
+            clearTimeout(existingDelay);
+            promotionDelays.delete(member.id);
+        }
+
         // Handle video channel join
         if (newState.channelId === videoChannelId) {
             const hasVideo = newState.selfVideo || newState.streaming;
             
-            if (!hasVideo) {
+            if (!hasVideo && oldState.channelId !== waitingRoomId) {
+                // Only move to waiting room if they didn't just come from there
                 await member.voice.setChannel(waitingRoomId);
                 await member.send('📹 Please enable your video to join!');
                 return;
@@ -48,10 +57,19 @@ module.exports = {
             }
         }
 
-        // Auto-promote from waiting room
+        // Auto-promote from waiting room with a small delay
         if (newState.channelId === waitingRoomId && 
            (newState.selfVideo || newState.streaming)) {
-            await member.voice.setChannel(videoChannelId);
+            const delayTimer = setTimeout(async () => {
+                const currentState = guild.members.cache.get(member.id)?.voice;
+                if (currentState?.channelId === waitingRoomId && 
+                   (currentState.selfVideo || currentState.streaming)) {
+                    await member.voice.setChannel(videoChannelId);
+                }
+                promotionDelays.delete(member.id);
+            }, 1000); // 1 second delay
+
+            promotionDelays.set(member.id, delayTimer);
         }
     }
 };

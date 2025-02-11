@@ -16,7 +16,9 @@ class VoiceTextChannelManager {
 
     async getOrCreateTextChannel(voiceChannel) {
         try {
-            if (this.excludedChannels.includes(voiceChannel.id)) {
+            // Add check for Video Events category
+            if (this.excludedChannels.includes(voiceChannel.id) || 
+                voiceChannel.parent?.name === 'Video Events') {
                 return null;
             }
 
@@ -127,7 +129,16 @@ class VoiceTextChannelManager {
                 // Bulk-delete messages that are less than 2 weeks old
                 const recentMessages = messages.filter(msg => msg.createdTimestamp > twoWeeksAgo);
                 if (recentMessages.size > 0) {
-                    await textChannel.bulkDelete(recentMessages, true).catch(console.error);
+                    try {
+                        await textChannel.bulkDelete(recentMessages, true);
+                    } catch (error) {
+                        // Handle Unknown Message error gracefully
+                        if (error.code === 10008) {
+                            console.log('Attempted to delete already deleted messages, continuing...');
+                        } else {
+                            throw error; // Re-throw other errors
+                        }
+                    }
                     totalDeleted += recentMessages.size;
                 }
 
