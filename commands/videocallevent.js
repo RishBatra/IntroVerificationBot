@@ -19,39 +19,61 @@ module.exports = {
         }
 
         try {
-            // Create category
+            // Create category with proper permissions
             const category = await guild.channels.create({
                 name: 'Video Events',
                 type: ChannelType.GuildCategory,
-                permissionOverwrites: [{
-                    id: guild.id,
-                    deny: [PermissionFlagsBits.Connect]
-                }]
+                permissionOverwrites: [
+                    {
+                        id: guild.id,
+                        deny: [PermissionFlagsBits.Connect]
+                    },
+                    {
+                        id: interaction.client.user.id,
+                        allow: [
+                            PermissionFlagsBits.ViewChannel,
+                            PermissionFlagsBits.Connect,
+                            PermissionFlagsBits.MoveMembers
+                        ]
+                    }
+                ]
             });
 
-            // Create waiting room
+            // Create waiting room with speak permissions
             const waitingRoom = await guild.channels.create({
                 name: '🚪-waiting-room',
                 type: ChannelType.GuildVoice,
-                parent: category,
-                permissionOverwrites: [{
-                    id: guild.id,
-                    deny: [PermissionFlagsBits.Speak]
-                }]
+                parent: category.id,
+                permissionOverwrites: [
+                    {
+                        id: guild.id,
+                        allow: [PermissionFlagsBits.Speak]
+                    }
+                ]
             });
 
-            // Create video channel
+            // Create video channel with strict permissions
             const videoChannel = await guild.channels.create({
                 name: '📹-video-call',
                 type: ChannelType.GuildVoice,
-                parent: category,
-                permissionOverwrites: [{
-                    id: guild.id,
-                    deny: [PermissionFlagsBits.Connect]
-                }]
+                parent: category.id,
+                permissionOverwrites: [
+                    {
+                        id: guild.id,
+                        deny: [PermissionFlagsBits.Connect]
+                    },
+                    {
+                        id: interaction.client.user.id,
+                        allow: [
+                            PermissionFlagsBits.ViewChannel,
+                            PermissionFlagsBits.Connect,
+                            PermissionFlagsBits.MoveMembers
+                        ]
+                    }
+                ]
             });
 
-            // Save to database
+            // Save to database with proper field names
             await VideoEvent.create({
                 guildId: guild.id,
                 categoryId: category.id,
@@ -65,9 +87,9 @@ module.exports = {
             });
 
         } catch (error) {
-            console.error(error);
+            console.error('Event Creation Error:', error);
             await interaction.reply({
-                content: '❌ Failed to create event channels!',
+                content: '❌ Failed to create event channels! Check bot permissions.',
                 ephemeral: true
             });
         }
