@@ -18,20 +18,19 @@ module.exports = {
         if (![waitingRoomId, videoChannelId].includes(newState.channelId) && 
             ![waitingRoomId, videoChannelId].includes(oldState.channelId)) return;
 
-        // Handle video channel activity
+        // Handle video channel joins
         if (newState.channelId === videoChannelId) {
-            // Check if user came from waiting room
-            const fromWaitingRoom = oldState.channelId === waitingRoomId;
-            
-            // Immediate video check for non-waiting room entries
-            if (!fromWaitingRoom) {
-                const hasVideo = newState.selfVideo || newState.streaming;
-                if (!hasVideo) {
+            // Immediate video check for ALL entries
+            const hasVideo = newState.selfVideo || newState.streaming;
+            if (!hasVideo) {
+                // Prevent infinite loops
+                if (oldState.channelId !== waitingRoomId) {
                     await member.voice.setChannel(waitingRoomId)
                         .catch(console.error);
-                    return member.send('📹 Please enable video to join this channel!')
-                        .catch(() => {/* Prevent unhandled promise rejection */});
+                    await member.send('📹 Please enable video to join this channel!')
+                        .catch(() => {});
                 }
+                return;
             }
 
             // Start/reset the 5-minute timer
@@ -40,10 +39,7 @@ module.exports = {
 
             videoTimers.set(member.id, {
                 timer: setTimeout(async () => {
-                    const currentState = await guild.members.fetch(member.id)
-                        .then(m => m.voice)
-                        .catch(() => null);
-                    
+                    const currentState = guild.members.cache.get(member.id)?.voice;
                     if (!currentState || currentState.channelId !== videoChannelId) return;
                     
                     if (!currentState.selfVideo && !currentState.streaming) {
@@ -53,13 +49,13 @@ module.exports = {
                             .catch(() => {});
                     }
                     videoTimers.delete(member.id);
-                }, 300000), // 5 minutes
+                }, 300000),
                 lastCheck: now
             });
         }
 
         // Handle leaving video channel
-        if (oldState.channelId === videoChannelId && newState.channelId !== videoChannelId) {
+        if (oldState.channelId === videoChannelId) {
             const timerData = videoTimers.get(member.id);
             if (timerData) {
                 clearTimeout(timerData.timer);
@@ -72,12 +68,31 @@ module.exports = {
             (newState.selfVideo || newState.streaming) &&
             oldState.channelId !== videoChannelId) {
             
-            // Prevent rapid toggling
+            // Add cooldown and track movement
             const lastMove = videoTimers.get(member.id)?.lastCheck || 0;
-            if (now - lastMove < 5000) return; // 5-second cooldown
+            if (now - lastMove < 3000) return;
 
-            await member.voice.setChannel(videoChannelId)
-                .catch(console.error);
+            try {
+                await member.voice.setChannel(videoChannelId);
+                // Update timer with new timestamp
+                videoTimers.set(member.id, {
+                    timer: setTimeout(async () => {
+                        const currentState = guild.members.cache.get(member.id)?.voice;
+                        if (!currentState || currentState.channelId !== videoChannelId) return;
+                        
+                        if (!currentState.selfVideo && !currentState.streaming) {
+                            await member.voice.setChannel(waitingRoomId)
+                                .catch(console.error);
+                            member.send('⏲️ Moved to waiting room due to inactive video!')
+                                .catch(() => {});
+                        }
+                        videoTimers.delete(member.id);
+                    }, 300000),
+                    lastCheck: Date.now()
+                });
+            } catch (error) {
+                console.error('Auto-promote failed:', error);
+            }
         }
     }
 };
