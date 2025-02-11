@@ -7,18 +7,19 @@ module.exports = {
         .setName('cleanup-event')
         .setDescription('Remove video event channels and clean up event roles'),
     async execute(interaction) {
-        const guild = interaction.guild;
-
-        const eventData = await VideoEvent.findOne({ guildId: guild.id });
-        if (!eventData) {
-            return interaction.reply({
-                content: '❌ No active event to clean up!',
-                ephemeral: true,
-            });
-        }
-
         try {
-            // Delete event channels (waiting room, video channel, and category if available)
+            // Defer the reply immediately.
+            await interaction.deferReply({ ephemeral: true });
+
+            const guild = interaction.guild;
+            const eventData = await VideoEvent.findOne({ guildId: guild.id });
+            if (!eventData) {
+                return await interaction.editReply({
+                    content: '❌ No active event to clean up!'
+                });
+            }
+
+            // Get and delete the event channels (waiting room, video call, and category).
             const channels = [
                 guild.channels.cache.get(eventData.waitingRoomId),
                 guild.channels.cache.get(eventData.videoChannelId),
@@ -29,25 +30,30 @@ module.exports = {
                 await channel.delete().catch(console.error);
             }
 
-            // Delete the "Video Enabled" role if it exists
+            // Delete the "Video Enabled" role if it exists.
             const videoRole = guild.roles.cache.find(r => r.name === "Video Enabled");
             if (videoRole) {
                 await videoRole.delete("Cleaning up event roles").catch(console.error);
             }
 
-            // Remove the event record from the database
+            // Remove the event record from your database.
             await VideoEvent.deleteOne({ guildId: guild.id });
 
-            await interaction.reply({
-                content: '✅ Successfully cleaned up all event channels and roles!',
-                ephemeral: true,
+            await interaction.editReply({
+                content: '✅ Successfully cleaned up all event channels and roles!'
             });
         } catch (error) {
             console.error("Error during cleanup:", error);
-            await interaction.reply({
-                content: '❌ Failed to clean up channels or roles!',
-                ephemeral: true,
-            });
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({
+                    content: '❌ Failed to clean up channels or roles!'
+                });
+            } else {
+                await interaction.reply({
+                    content: '❌ Failed to clean up channels or roles!',
+                    ephemeral: true
+                });
+            }
         }
     }
 };
