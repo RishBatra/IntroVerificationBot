@@ -14,32 +14,33 @@ module.exports = {
         const member = newState.member;
         const now = Date.now();
 
-        // Ignore state changes not involving our channels
+        // Ignore bot-initiated moves and non-event channels
+        if (member.user.bot) return;
         if (![waitingRoomId, videoChannelId].includes(newState.channelId) && 
             ![waitingRoomId, videoChannelId].includes(oldState.channelId)) return;
 
         // Handle video channel joins
         if (newState.channelId === videoChannelId) {
-            // Immediate video check for ALL entries
+            // Immediate strict video check for all entries
             const hasVideo = newState.selfVideo || newState.streaming;
             if (!hasVideo) {
-                // Prevent infinite loops
                 if (oldState.channelId !== waitingRoomId) {
                     await member.voice.setChannel(waitingRoomId)
                         .catch(console.error);
-                    await member.send('📹 Please enable video to join this channel!')
+                    await member.send('📹 Please enable video to join!')
                         .catch(() => {});
                 }
                 return;
             }
 
-            // Start/reset the 5-minute timer
+            // Clear existing timer
             const existingTimer = videoTimers.get(member.id);
             if (existingTimer) clearTimeout(existingTimer.timer);
 
+            // Start fresh timer with state validation
             videoTimers.set(member.id, {
                 timer: setTimeout(async () => {
-                    const currentState = guild.members.cache.get(member.id)?.voice;
+                    const currentState = guild.voiceStates.cache.get(member.id);
                     if (!currentState || currentState.channelId !== videoChannelId) return;
                     
                     if (!currentState.selfVideo && !currentState.streaming) {
@@ -55,7 +56,7 @@ module.exports = {
         }
 
         // Handle leaving video channel
-        if (oldState.channelId === videoChannelId) {
+        if (oldState.channelId === videoChannelId && newState.channelId !== videoChannelId) {
             const timerData = videoTimers.get(member.id);
             if (timerData) {
                 clearTimeout(timerData.timer);
@@ -68,16 +69,18 @@ module.exports = {
             (newState.selfVideo || newState.streaming) &&
             oldState.channelId !== videoChannelId) {
             
-            // Add cooldown and track movement
+            // Cooldown and state validation
             const lastMove = videoTimers.get(member.id)?.lastCheck || 0;
             if (now - lastMove < 3000) return;
 
             try {
+                // Force refresh voice state
+                await guild.voiceStates.fetch(member.id);
+                
                 await member.voice.setChannel(videoChannelId);
-                // Update timer with new timestamp
                 videoTimers.set(member.id, {
                     timer: setTimeout(async () => {
-                        const currentState = guild.members.cache.get(member.id)?.voice;
+                        const currentState = guild.voiceStates.cache.get(member.id);
                         if (!currentState || currentState.channelId !== videoChannelId) return;
                         
                         if (!currentState.selfVideo && !currentState.streaming) {
