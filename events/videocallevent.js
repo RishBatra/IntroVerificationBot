@@ -1,12 +1,12 @@
 const VideoEvent = require('../models/videocallevent');
 
-// A Map to debounce rapid toggles per member.
+// Map to store debounce timers per member.
 const debounceMap = new Map();
 
 module.exports = {
   name: 'voiceStateUpdate',
   async execute(oldState, newState) {
-    // Ignore updates from bots.
+    // Ignore bots.
     if (newState.member.user.bot) return;
 
     const guild = newState.guild;
@@ -20,11 +20,10 @@ module.exports = {
       return;
     }
 
-    // IDs for our channels.
     const waitingRoomId = event.waitingRoomId;
     const videoChannelId = event.videoChannelId;
 
-    // Helper: move the member if not already in the target channel.
+    // Helper function to move a member if not already in target channel.
     const moveMember = async (member, targetChannelId, reason) => {
       if (member.voice.channelId === targetChannelId) return;
       try {
@@ -35,40 +34,38 @@ module.exports = {
       }
     };
 
-    // CASE 1: User in Waiting Room turns on video.
-    if (
-      newState.channelId === waitingRoomId &&
-      !oldState.selfVideo &&
-      newState.selfVideo
-    ) {
-      // Cancel any pending timeout.
-      if (debounceMap.has(newState.id)) {
-        clearTimeout(debounceMap.get(newState.id));
-        debounceMap.delete(newState.id);
-      }
-      await moveMember(newState.member, videoChannelId, 'User enabled video');
-    }
-    // CASE 2: User in Video Call turns off video.
-    else if (
-      newState.channelId === videoChannelId &&
-      oldState.selfVideo &&
-      !newState.selfVideo
-    ) {
-      // Debounce to avoid transient toggles.
-      if (debounceMap.has(newState.id)) {
-        clearTimeout(debounceMap.get(newState.id));
-      }
-      const timeout = setTimeout(async () => {
-        // Recheck voice state before moving.
-        if (
-          newState.member.voice.channelId === videoChannelId &&
-          !newState.selfVideo
-        ) {
-          await moveMember(newState.member, waitingRoomId, 'User disabled video');
+    // --- Enforce Video Call Channel Rules ---
+    if (newState.channelId === videoChannelId) {
+      // If the member is in the video channel but does NOT have video enabled...
+      if (!newState.selfVideo) {
+        // If they just joined the video channel (oldState.channelId is different), move them immediately.
+        if (oldState.channelId !== videoChannelId) {
+          await moveMember(newState.member, waitingRoomId, 'You must enable video to join the video call.');
+        } else {
+          // Otherwise (if they toggled video off while in the video channel), debounce the move.
+          if (debounceMap.has(newState.id)) {
+            clearTimeout(debounceMap.get(newState.id));
+          }
+          const timeout = setTimeout(async () => {
+            if (newState.member.voice.channelId === videoChannelId && !newState.selfVideo) {
+              await moveMember(newState.member, waitingRoomId, 'You must have video enabled in the video call.');
+            }
+            debounceMap.delete(newState.id);
+          }, 3000);
+          debounceMap.set(newState.id, timeout);
         }
-        debounceMap.delete(newState.id);
-      }, 3000); // 3-second debounce delay.
-      debounceMap.set(newState.id, timeout);
+      }
+    }
+    // --- Handle Waiting Room: Auto-move to Video Channel if Video Enabled ---
+    else if (newState.channelId === waitingRoomId) {
+      // If the user was not using video before and now has it enabled, move them to the video call channel.
+      if (!oldState.selfVideo && newState.selfVideo) {
+        if (debounceMap.has(newState.id)) {
+          clearTimeout(debounceMap.get(newState.id));
+          debounceMap.delete(newState.id);
+        }
+        await moveMember(newState.member, videoChannelId, 'You enabled video.');
+      }
     }
   },
 };

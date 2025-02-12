@@ -7,7 +7,6 @@ module.exports = {
     .setDescription('Remove video event channels and clean up event records'),
   async execute(interaction) {
     try {
-      // Defer reply to avoid timeout.
       await interaction.deferReply({ ephemeral: true });
       
       const guild = interaction.guild;
@@ -18,7 +17,6 @@ module.exports = {
         });
       }
       
-      // Delete the event channels (waiting room, video call, and category).
       const channelIds = [eventData.waitingRoomId, eventData.videoChannelId, eventData.categoryId];
       for (const channelId of channelIds) {
         const channel = guild.channels.cache.get(channelId);
@@ -32,8 +30,7 @@ module.exports = {
         }
       }
       
-      // Optionally, delete the "Video Enabled" role if it exists and is not the verified role.
-      // In the updated system, verified members use the role with ID "692985789608362005"
+      // Optionally delete the "Video Enabled" role if it exists and is not the verified role.
       const verifiedRoleId = "692985789608362005";
       const videoRole = guild.roles.cache.find(r => r.name === "Video Enabled");
       if (videoRole && videoRole.id !== verifiedRoleId) {
@@ -45,7 +42,6 @@ module.exports = {
         }
       }
       
-      // Remove the event record from the database.
       await VideoEvent.deleteOne({ guildId: guild.id });
       
       await interaction.editReply({

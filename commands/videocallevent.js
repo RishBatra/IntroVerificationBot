@@ -3,13 +3,14 @@ const VideoEvent = require('../models/videocallevent');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('create-video-event')
+    .setName('createvideoevent')
     .setDescription('Create video call event channels')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
   async execute(interaction) {
     const guild = interaction.guild;
+    const verifiedRoleId = "692985789608362005"; // Only verified members can see the category
 
-    // Check if an event already exists
+    // Check if an event already exists.
     const existingEvent = await VideoEvent.findOne({ guildId: guild.id });
     if (existingEvent) {
       return interaction.reply({
@@ -18,13 +19,10 @@ module.exports = {
       });
     }
 
-    // Verified role ID to allow access to the event category and channels.
-    const verifiedRoleId = "692985789608362005";
-
     try {
-      // Create a category with overwrites:
-      // - Deny @everyone the VIEW_CHANNEL permission.
-      // - Allow only the verified role and the bot to view and manage.
+      // Create a category with permission overwrites:
+      // - @everyone is denied VIEW_CHANNEL.
+      // - Only the verified role and the bot can view/manage.
       const category = await guild.channels.create({
         name: 'Video Event Category',
         type: ChannelType.GuildCategory,
@@ -50,8 +48,8 @@ module.exports = {
         type: ChannelType.GuildVoice,
         parent: category.id,
         permissionOverwrites: [
-          // Inherit from category: @everyone is denied VIEW_CHANNEL.
           {
+            // Verified members can view, connect and speak.
             id: verifiedRoleId,
             allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
           },
@@ -88,7 +86,7 @@ module.exports = {
         ],
       });
 
-      // Save the event channels to the database.
+      // Save the event record.
       await VideoEvent.create({
         guildId: guild.id,
         categoryId: category.id,
