@@ -6,9 +6,9 @@ const videoEventSchema = new mongoose.Schema({
     required: true, 
     unique: true 
   },
-  categoryId: String,
-  waitingRoomId: String,
-  videoChannelId: String,
+  categoryId: { type: String, required: true },
+  waitingRoomId: { type: String, required: true },
+  videoChannelId: { type: String, required: true },
   createdAt: { 
     type: Date, 
     default: Date.now 
