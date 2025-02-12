@@ -3,7 +3,7 @@ const VideoEvent = require('../models/videocallevent');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('create-event')
+        .setName('create-video-event')
         .setDescription('Create video call event channels')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
     async execute(interaction) {
