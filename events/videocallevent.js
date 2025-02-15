@@ -1,4 +1,5 @@
 const VideoEvent = require('../models/videocallevent');
+const Whitelist = require('../models/whitelist');
 
 module.exports = {
   name: 'voiceStateUpdate',
@@ -12,6 +13,8 @@ module.exports = {
       return;
     }
 
+    const TIMEOUT_DURATION = event.timeoutDuration || 10000; // Default: 10 sec
+
     const videoVerifiedRole = guild.roles.cache.get(event.videoVerifiedRoleId);
     if (!videoVerifiedRole) {
       console.log(`[ERROR] Video Verified role not found. Run /createvideoevent again.`);
@@ -23,21 +26,24 @@ module.exports = {
 
     console.log(`[DEBUG] User: ${newState.member.user.tag} | Channel: ${newState.channelId} | Video: ${newState.selfVideo}`);
 
+    // **Check if User is Whitelisted**
+    const isWhitelisted = await Whitelist.findOne({ guildId: guild.id, userId: newState.member.id });
+    if (isWhitelisted) {
+      console.log(`[DEBUG] ${newState.member.user.tag} is whitelisted. Skipping video enforcement.`);
+      return;
+    }
+
     const updateRole = async (member, add) => {
       try {
         if (add) {
           if (!member.roles.cache.has(videoVerifiedRole.id)) {
             await member.roles.add(videoVerifiedRole);
             console.log(`[DEBUG] ${member.user.tag} granted Video Verified role.`);
-          } else {
-            console.log(`[DEBUG] ${member.user.tag} already has the role.`);
           }
         } else {
           if (member.roles.cache.has(videoVerifiedRole.id)) {
             await member.roles.remove(videoVerifiedRole);
             console.log(`[DEBUG] ${member.user.tag} removed from Video Verified role.`);
-          } else {
-            console.log(`[DEBUG] ${member.user.tag} does not have the role.`);
           }
         }
       } catch (error) {
@@ -49,10 +55,8 @@ module.exports = {
     if (newState.channelId === waitingRoomId) {
       console.log(`[DEBUG] ${newState.member.user.tag} joined the Waiting Room.`);
       if (newState.selfVideo) {
-        console.log(`[DEBUG] ${newState.member.user.tag} turned ON video.`);
         await updateRole(newState.member, true);
       } else {
-        console.log(`[DEBUG] ${newState.member.user.tag} turned OFF video.`);
         await updateRole(newState.member, false);
       }
     }
@@ -61,7 +65,7 @@ module.exports = {
     if (newState.channelId === videoChannelId) {
       console.log(`[DEBUG] ${newState.member.user.tag} moved to the Video Call.`);
 
-      // **Wait 3 seconds before checking video**
+      // **Wait TIMEOUT_DURATION before checking video**
       setTimeout(async () => {
         const updatedState = guild.members.cache.get(newState.member.id)?.voice;
         if (!updatedState || updatedState.channelId !== videoChannelId) {
@@ -69,17 +73,13 @@ module.exports = {
           return;
         }
 
-        // **Check if video is still off after 3 seconds**
         if (!updatedState.selfVideo) {
-          console.log(`[DEBUG] ${newState.member.user.tag} still has video OFF after 3 seconds. Moving them back.`);
+          console.log(`[DEBUG] ${newState.member.user.tag} still has video OFF after ${TIMEOUT_DURATION / 1000} sec. Moving them back.`);
           await newState.member.voice.setChannel(waitingRoomId, 'You must have video enabled in the video call.');
           await updateRole(newState.member, false);
-        } else {
-          console.log(`[DEBUG] ${newState.member.user.tag} successfully turned video ON, keeping them in Video Call.`);
         }
-      }, 3000); // **Wait 3 seconds before enforcing rules**
-
-      return; // Exit early to prevent immediate role removal
+      }, TIMEOUT_DURATION);
+      return;
     }
 
     // 🎯 **User is in the Video Call but Turns Off Video**
