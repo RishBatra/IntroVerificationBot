@@ -7,30 +7,28 @@ module.exports = {
     .setDescription('Create video call event channels')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true }); // Prevent interaction timeout
+    await interaction.deferReply({ ephemeral: true });
 
     const guild = interaction.guild;
     const verifiedRoleId = "692985789608362005"; // Verified role ID
 
-    // Check if an event already exists.
     const existingEvent = await VideoEvent.findOne({ guildId: guild.id });
     if (existingEvent) {
       return interaction.editReply('❌ An event already exists in this guild. Use the cleanup command first.');
     }
 
     try {
-      // Create the "Video Verified" role
       let videoVerifiedRole = guild.roles.cache.find(r => r.name === "Video Verified");
       if (!videoVerifiedRole) {
         videoVerifiedRole = await guild.roles.create({
           name: "Video Verified",
-          color: 0x3498db, // Hex color for blue
+          color: 0x3498db, // Blue color
           reason: "Required for video call access",
           permissions: [],
         });
       }
 
-      // Create the category with permission overwrites
+      // Create the Video Event category with permissions
       const category = await guild.channels.create({
         name: 'Video Event Category',
         type: ChannelType.GuildCategory,
@@ -47,25 +45,25 @@ module.exports = {
         type: ChannelType.GuildVoice,
         parent: category.id,
         permissionOverwrites: [
-          { id: verifiedRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak] }, // Verified users can access
+          { id: verifiedRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak] },
           { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.MoveMembers] },
         ],
       });
 
-      // Create the video call voice channel (HIDDEN by default)
+      // Create the video call channel (hidden by default)
       const videoChannel = await guild.channels.create({
         name: '📹 Video Call',
         type: ChannelType.GuildVoice,
         parent: category.id,
         permissionOverwrites: [
           { id: guild.id, deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect] }, // @everyone cannot see or join
-          { id: verifiedRoleId, deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect] }, // Verified users cannot see or join
-          { id: videoVerifiedRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.Stream] }, // Only Video Verified users can see/join
+          { id: verifiedRoleId, deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect] }, // Verified users cannot see
+          { id: videoVerifiedRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.Stream] },
           { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.MoveMembers] },
         ],
       });
 
-      // Save the event record
+      // Save the event record in the database
       await VideoEvent.create({
         guildId: guild.id,
         categoryId: category.id,

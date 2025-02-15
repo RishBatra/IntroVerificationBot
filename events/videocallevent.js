@@ -16,6 +16,7 @@ module.exports = {
     const waitingRoomId = event.waitingRoomId;
     const videoChannelId = event.videoChannelId;
 
+    // Function to add or remove the Video Verified role
     const updateRole = async (member, add) => {
       try {
         if (add) {
@@ -30,24 +31,27 @@ module.exports = {
       }
     };
 
-    // If user is in the Waiting Room
+    // If the user is in the Waiting Room
     if (newState.channelId === waitingRoomId) {
       if (newState.selfVideo) {
+        // Add the Video Verified role when video is enabled
         if (!newState.member.roles.cache.has(videoVerifiedRole.id)) {
-          await updateRole(newState.member, true); // Add role so they can see Video Call
+          await updateRole(newState.member, true);
         }
       } else {
+        // Remove the Video Verified role if video is disabled
         if (newState.member.roles.cache.has(videoVerifiedRole.id)) {
-          await updateRole(newState.member, false); // Remove role so they cannot see Video Call
+          await updateRole(newState.member, false);
         }
       }
     }
 
-    // If user is in the Video Call channel
+    // If the user is in the Video Call channel
     if (newState.channelId === videoChannelId) {
       if (!newState.selfVideo) {
+        // Move them back to the Waiting Room if video is disabled
         await newState.member.voice.setChannel(waitingRoomId, 'You must have video enabled in the video call.');
-        await updateRole(newState.member, false); // Remove role when they disable video
+        await updateRole(newState.member, false); // Remove the role if they disable video
       }
     }
   },
