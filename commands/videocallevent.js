@@ -36,8 +36,7 @@ module.exports = {
         type: ChannelType.GuildCategory,
         permissionOverwrites: [
           { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, // @everyone cannot see
-          { id: verifiedRoleId, deny: [PermissionFlagsBits.ViewChannel] }, // Verified users cannot see
-          { id: videoVerifiedRole.id, allow: [PermissionFlagsBits.ViewChannel] }, // Only Video Verified can see
+          { id: verifiedRoleId, allow: [PermissionFlagsBits.ViewChannel] }, // Verified users can see the category
           { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.MoveMembers] },
         ],
       });

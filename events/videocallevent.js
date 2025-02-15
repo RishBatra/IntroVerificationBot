@@ -9,20 +9,24 @@ module.exports = {
     const event = await VideoEvent.findOne({ guildId: guild.id });
     if (!event) return;
 
-    const verifiedRoleId = "692985789608362005";
+    const verifiedRoleId = "692985789608362005"; // Verified role ID
     const videoVerifiedRole = guild.roles.cache.get(event.videoVerifiedRoleId);
     if (!videoVerifiedRole) return;
 
     const waitingRoomId = event.waitingRoomId;
     const videoChannelId = event.videoChannelId;
 
-    const moveMember = async (member, targetChannelId, reason) => {
-      if (member.voice.channelId === targetChannelId) return;
+    const updateRole = async (member, add) => {
       try {
-        await member.setChannel(targetChannelId, reason);
-        console.log(`${member.user.tag} moved to ${targetChannelId}: ${reason}`);
+        if (add) {
+          await member.roles.add(videoVerifiedRole);
+          console.log(`${member.user.tag} granted Video Verified role.`);
+        } else {
+          await member.roles.remove(videoVerifiedRole);
+          console.log(`${member.user.tag} removed from Video Verified role.`);
+        }
       } catch (error) {
-        console.error(`Error moving ${member.user.tag} to ${targetChannelId}:`, error);
+        console.error(`Error updating role for ${member.user.tag}:`, error);
       }
     };
 
@@ -30,13 +34,11 @@ module.exports = {
     if (newState.channelId === waitingRoomId) {
       if (newState.selfVideo) {
         if (!newState.member.roles.cache.has(videoVerifiedRole.id)) {
-          await newState.member.roles.add(videoVerifiedRole);
-          console.log(`${newState.member.user.tag} granted Video Verified role.`);
+          await updateRole(newState.member, true); // Add role so they can see Video Call
         }
       } else {
         if (newState.member.roles.cache.has(videoVerifiedRole.id)) {
-          await newState.member.roles.remove(videoVerifiedRole);
-          console.log(`${newState.member.user.tag} removed from Video Verified role.`);
+          await updateRole(newState.member, false); // Remove role so they cannot see Video Call
         }
       }
     }
@@ -44,8 +46,8 @@ module.exports = {
     // If user is in the Video Call channel
     if (newState.channelId === videoChannelId) {
       if (!newState.selfVideo) {
-        await moveMember(newState.member, waitingRoomId, 'You must have video enabled in the video call.');
-        await newState.member.roles.remove(videoVerifiedRole);
+        await newState.member.voice.setChannel(waitingRoomId, 'You must have video enabled in the video call.');
+        await updateRole(newState.member, false); // Remove role when they disable video
       }
     }
   },
