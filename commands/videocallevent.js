@@ -12,44 +12,40 @@ module.exports = {
     const guild = interaction.guild;
     const verifiedRoleId = "692985789608362005"; // Verified role ID
 
+    // Check if an event already exists
     const existingEvent = await VideoEvent.findOne({ guildId: guild.id });
     if (existingEvent) {
       return interaction.editReply('❌ An event already exists in this guild. Use the cleanup command first.');
     }
 
     try {
-      // Ensure bot has Manage Roles permission
       if (!guild.members.me.permissions.has(PermissionFlagsBits.ManageRoles)) {
-        return interaction.editReply('❌ Bot is missing "Manage Roles" permission. Please fix it and try again.');
+        return interaction.editReply('❌ Bot is missing "Manage Roles" permission.');
       }
 
       // Create or fetch the "Video Verified" role
       let videoVerifiedRole = guild.roles.cache.find(r => r.name === "Video Verified");
       if (!videoVerifiedRole) {
-        console.log(`[DEBUG] Creating "Video Verified" role...`);
         videoVerifiedRole = await guild.roles.create({
           name: "Video Verified",
           color: 0x3498db,
           reason: "Required for video call access",
           permissions: [],
         });
-        console.log(`[DEBUG] "Video Verified" role created successfully.`);
-      } else {
-        console.log(`[DEBUG] "Video Verified" role already exists.`);
       }
 
       // Create the Video Event category
       const category = await guild.channels.create({
-        name: 'Video Event Category',
+        name: '🎥 Video Event',
         type: ChannelType.GuildCategory,
         permissionOverwrites: [
-          { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, 
-          { id: verifiedRoleId, allow: [PermissionFlagsBits.ViewChannel] }, 
+          { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+          { id: verifiedRoleId, allow: [PermissionFlagsBits.ViewChannel] },
           { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.MoveMembers] },
         ],
       });
 
-      // Create the Waiting Room channel
+      // Create the Waiting Room
       const waitingRoom = await guild.channels.create({
         name: '🚪 Waiting Room',
         type: ChannelType.GuildVoice,
@@ -60,16 +56,29 @@ module.exports = {
         ],
       });
 
-      // Create the Video Call channel (Hidden by default)
+      // Create the Video Call (Hidden by default)
       const videoChannel = await guild.channels.create({
         name: '📹 Video Call',
         type: ChannelType.GuildVoice,
         parent: category.id,
         permissionOverwrites: [
-          { id: guild.id, deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect] }, 
-          { id: verifiedRoleId, deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect] }, 
+          { id: guild.id, deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect] },
+          { id: verifiedRoleId, deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect] },
           { id: videoVerifiedRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.Stream] },
           { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.MoveMembers] },
+        ],
+      });
+
+      // Create the Linked Voice Text Channel
+      const videoTextChannel = await guild.channels.create({
+        name: '📢 video-chat',
+        type: ChannelType.GuildText,
+        parent: category.id,
+        permissionOverwrites: [
+          { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+          { id: verifiedRoleId, deny: [PermissionFlagsBits.ViewChannel] }, 
+          { id: videoVerifiedRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+          { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages] },
         ],
       });
 
@@ -79,13 +88,17 @@ module.exports = {
         categoryId: category.id,
         waitingRoomId: waitingRoom.id,
         videoChannelId: videoChannel.id,
-        videoVerifiedRoleId: videoVerifiedRole.id, // Save the role ID
+        videoTextChannelId: videoTextChannel.id, // Store the linked text channel
+        videoVerifiedRoleId: videoVerifiedRole.id, // Store role ID
       });
 
-      return interaction.editReply(`✅ Video event channels created!\nCategory: <#${category.id}>\nWaiting Room: <#${waitingRoom.id}>\nVideo Call: (Hidden until video is enabled)`);
+      return interaction.editReply(`✅ Video event setup complete!\n
+      **Waiting Room:** <#${waitingRoom.id}>
+      **Video Call:** <#${videoChannel.id}>
+      **Voice Text Channel:** <#${videoTextChannel.id}>`);
     } catch (error) {
-      console.error('Error creating video event channels:', error);
-      return interaction.editReply('❌ Failed to create video event channels. Check bot permissions and try again.');
+      console.error('Error creating video event:', error);
+      return interaction.editReply('❌ Failed to create video event.');
     }
   },
 };
