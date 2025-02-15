@@ -25,7 +25,7 @@ module.exports = {
       if (!videoVerifiedRole) {
         videoVerifiedRole = await guild.roles.create({
           name: "Video Verified",
-          color: "BLUE",
+          color: 0x3498db, // Fix: Use a valid hex color instead of "BLUE"
           reason: "Required for video call access",
           permissions: [],
         });
