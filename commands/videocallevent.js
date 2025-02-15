@@ -20,9 +20,18 @@ module.exports = {
     }
 
     try {
-      // Create a category with permission overwrites:
-      // - @everyone is denied VIEW_CHANNEL.
-      // - Only the verified role and the bot can view/manage.
+      // Create the "Video Verified" role
+      let videoVerifiedRole = guild.roles.cache.find(r => r.name === "Video Verified");
+      if (!videoVerifiedRole) {
+        videoVerifiedRole = await guild.roles.create({
+          name: "Video Verified",
+          color: "BLUE",
+          reason: "Required for video call access",
+          permissions: [],
+        });
+      }
+
+      // Create a category with permission overwrites
       const category = await guild.channels.create({
         name: 'Video Event Category',
         type: ChannelType.GuildCategory,
@@ -36,31 +45,34 @@ module.exports = {
             allow: [PermissionFlagsBits.ViewChannel],
           },
           {
+            id: videoVerifiedRole.id,
+            allow: [PermissionFlagsBits.ViewChannel],
+          },
+          {
             id: interaction.client.user.id,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.MoveMembers],
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.MoveMembers, PermissionFlagsBits.ManageRoles],
           },
         ],
       });
 
-      // Create the waiting room voice channel.
+      // Create the waiting room voice channel
       const waitingRoom = await guild.channels.create({
         name: '🚪 Waiting Room',
         type: ChannelType.GuildVoice,
         parent: category.id,
         permissionOverwrites: [
           {
-            // Verified members can view, connect and speak.
             id: verifiedRoleId,
             allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
           },
           {
             id: interaction.client.user.id,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.MoveMembers],
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.MoveMembers, PermissionFlagsBits.ManageRoles],
           },
         ],
       });
 
-      // Create the video call voice channel.
+      // Create the video call voice channel
       const videoChannel = await guild.channels.create({
         name: '📹 Video Call',
         type: ChannelType.GuildVoice,
@@ -71,7 +83,7 @@ module.exports = {
             deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
           },
           {
-            id: verifiedRoleId,
+            id: videoVerifiedRole.id,
             allow: [
               PermissionFlagsBits.ViewChannel,
               PermissionFlagsBits.Connect,
@@ -81,17 +93,18 @@ module.exports = {
           },
           {
             id: interaction.client.user.id,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.MoveMembers],
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.MoveMembers, PermissionFlagsBits.ManageRoles],
           },
         ],
       });
 
-      // Save the event record.
+      // Save the event record
       await VideoEvent.create({
         guildId: guild.id,
         categoryId: category.id,
         waitingRoomId: waitingRoom.id,
         videoChannelId: videoChannel.id,
+        videoVerifiedRoleId: videoVerifiedRole.id,
       });
 
       return interaction.reply({
