@@ -1,7 +1,5 @@
 const VideoEvent = require('../models/videocallevent');
 
-const gracePeriod = new Map(); // Store users who recently switched channels
-
 module.exports = {
   name: 'voiceStateUpdate',
   async execute(oldState, newState) {
@@ -63,39 +61,29 @@ module.exports = {
     if (newState.channelId === videoChannelId) {
       console.log(`[DEBUG] ${newState.member.user.tag} moved to the Video Call.`);
 
-      // **Apply Grace Period (5 seconds)**
-      gracePeriod.set(newState.member.id, true);
-
+      // **Wait 3 seconds before checking video**
       setTimeout(async () => {
-        gracePeriod.delete(newState.member.id);
-
-        // **Fetch latest voice state to check if user is still in the channel**
         const updatedState = guild.members.cache.get(newState.member.id)?.voice;
         if (!updatedState || updatedState.channelId !== videoChannelId) {
-          console.log(`[DEBUG] ${newState.member.user.tag} left the channel, skipping move.`);
-          return; // User left, no action needed.
+          console.log(`[DEBUG] ${newState.member.user.tag} left the channel, skipping check.`);
+          return;
         }
 
-        // **Check if video is still off after grace period**
+        // **Check if video is still off after 3 seconds**
         if (!updatedState.selfVideo) {
-          console.log(`[DEBUG] ${newState.member.user.tag} still has video OFF after grace period. Moving them back.`);
+          console.log(`[DEBUG] ${newState.member.user.tag} still has video OFF after 3 seconds. Moving them back.`);
           await newState.member.voice.setChannel(waitingRoomId, 'You must have video enabled in the video call.');
           await updateRole(newState.member, false);
         } else {
           console.log(`[DEBUG] ${newState.member.user.tag} successfully turned video ON, keeping them in Video Call.`);
         }
-      }, 5000); // 5-second grace period
+      }, 3000); // **Wait 3 seconds before enforcing rules**
 
-      return; // Exit early to avoid removing the role immediately
+      return; // Exit early to prevent immediate role removal
     }
 
-    // 🎯 **User is in the Video Call but Turns Off Video (AFTER Grace Period)**
+    // 🎯 **User is in the Video Call but Turns Off Video**
     if (oldState.channelId === videoChannelId && !newState.selfVideo) {
-      if (gracePeriod.has(newState.member.id)) {
-        console.log(`[DEBUG] ${newState.member.user.tag} is in grace period, skipping move.`);
-        return;
-      }
-
       console.log(`[DEBUG] ${newState.member.user.tag} turned OFF video in Video Call. Moving them back.`);
       await newState.member.voice.setChannel(waitingRoomId, 'You must have video enabled in the video call.');
       await updateRole(newState.member, false);
