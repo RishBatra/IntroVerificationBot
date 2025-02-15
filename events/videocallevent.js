@@ -65,12 +65,16 @@ module.exports = {
 
       // **Apply Grace Period (5 seconds)**
       gracePeriod.set(newState.member.id, true);
+
       setTimeout(async () => {
         gracePeriod.delete(newState.member.id);
 
         // **Fetch latest voice state to check if user is still in the channel**
         const updatedState = guild.members.cache.get(newState.member.id)?.voice;
-        if (!updatedState || updatedState.channelId !== videoChannelId) return; // User left, no action needed.
+        if (!updatedState || updatedState.channelId !== videoChannelId) {
+          console.log(`[DEBUG] ${newState.member.user.tag} left the channel, skipping move.`);
+          return; // User left, no action needed.
+        }
 
         // **Check if video is still off after grace period**
         if (!updatedState.selfVideo) {
