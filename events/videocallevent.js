@@ -12,11 +12,11 @@ module.exports = {
       return;
     }
 
-    const verifiedRoleId = "692985789608362005"; // Verified role ID
+    // Fetch role using saved ID
     const videoVerifiedRole = guild.roles.cache.get(event.videoVerifiedRoleId);
     
     if (!videoVerifiedRole) {
-      console.log(`[DEBUG] Video Verified role not found.`);
+      console.log(`[ERROR] "Video Verified" role ID from database is invalid. Run /createvideoevent again.`);
       return;
     }
 
@@ -28,26 +28,17 @@ module.exports = {
     const updateRole = async (member, add) => {
       try {
         if (add) {
-          if (!member.roles.cache.has(videoVerifiedRole.id)) {
-            await member.roles.add(videoVerifiedRole);
-            console.log(`[DEBUG] ${member.user.tag} granted Video Verified role.`);
-          } else {
-            console.log(`[DEBUG] ${member.user.tag} already has the role.`);
-          }
+          await member.roles.add(videoVerifiedRole);
+          console.log(`[DEBUG] ${member.user.tag} granted Video Verified role.`);
         } else {
-          if (member.roles.cache.has(videoVerifiedRole.id)) {
-            await member.roles.remove(videoVerifiedRole);
-            console.log(`[DEBUG] ${member.user.tag} removed from Video Verified role.`);
-          } else {
-            console.log(`[DEBUG] ${member.user.tag} does not have the role.`);
-          }
+          await member.roles.remove(videoVerifiedRole);
+          console.log(`[DEBUG] ${member.user.tag} removed from Video Verified role.`);
         }
       } catch (error) {
         console.error(`[ERROR] Failed to update role for ${member.user.tag}:`, error);
       }
     };
 
-    // If the user is in the Waiting Room
     if (newState.channelId === waitingRoomId) {
       console.log(`[DEBUG] ${newState.member.user.tag} is in the Waiting Room.`);
       if (newState.selfVideo) {
@@ -59,7 +50,6 @@ module.exports = {
       }
     }
 
-    // If the user is in the Video Call channel
     if (newState.channelId === videoChannelId) {
       console.log(`[DEBUG] ${newState.member.user.tag} is in the Video Call.`);
       if (!newState.selfVideo) {
