@@ -7,16 +7,15 @@ module.exports = {
     .setDescription('Create video call event channels')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
   async execute(interaction) {
+    await interaction.deferReply({ ephemeral: true }); // Immediate response to prevent timeout
+
     const guild = interaction.guild;
     const verifiedRoleId = "692985789608362005"; // Only verified members can see the category
 
     // Check if an event already exists.
     const existingEvent = await VideoEvent.findOne({ guildId: guild.id });
     if (existingEvent) {
-      return interaction.reply({
-        content: '❌ An event already exists in this guild. Use the cleanup command first.',
-        ephemeral: true,
-      });
+      return interaction.editReply('❌ An event already exists in this guild. Use the cleanup command first.');
     }
 
     try {
@@ -25,7 +24,7 @@ module.exports = {
       if (!videoVerifiedRole) {
         videoVerifiedRole = await guild.roles.create({
           name: "Video Verified",
-          color: 0x3498db, // Fix: Use a valid hex color instead of "BLUE"
+          color: 0x3498db, // Hex color (Fix for DiscordAPIError)
           reason: "Required for video call access",
           permissions: [],
         });
@@ -36,22 +35,10 @@ module.exports = {
         name: 'Video Event Category',
         type: ChannelType.GuildCategory,
         permissionOverwrites: [
-          {
-            id: guild.id, // @everyone
-            deny: [PermissionFlagsBits.ViewChannel],
-          },
-          {
-            id: verifiedRoleId,
-            allow: [PermissionFlagsBits.ViewChannel],
-          },
-          {
-            id: videoVerifiedRole.id,
-            allow: [PermissionFlagsBits.ViewChannel],
-          },
-          {
-            id: interaction.client.user.id,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.MoveMembers, PermissionFlagsBits.ManageRoles],
-          },
+          { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, // @everyone can't see
+          { id: verifiedRoleId, allow: [PermissionFlagsBits.ViewChannel] }, // Verified role can see
+          { id: videoVerifiedRole.id, allow: [PermissionFlagsBits.ViewChannel] }, // Video Verified can see
+          { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.MoveMembers] },
         ],
       });
 
@@ -61,14 +48,8 @@ module.exports = {
         type: ChannelType.GuildVoice,
         parent: category.id,
         permissionOverwrites: [
-          {
-            id: verifiedRoleId,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
-          },
-          {
-            id: interaction.client.user.id,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.MoveMembers, PermissionFlagsBits.ManageRoles],
-          },
+          { id: verifiedRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak] },
+          { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.MoveMembers] },
         ],
       });
 
@@ -78,23 +59,9 @@ module.exports = {
         type: ChannelType.GuildVoice,
         parent: category.id,
         permissionOverwrites: [
-          {
-            id: guild.id, // @everyone
-            deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
-          },
-          {
-            id: videoVerifiedRole.id,
-            allow: [
-              PermissionFlagsBits.ViewChannel,
-              PermissionFlagsBits.Connect,
-              PermissionFlagsBits.Speak,
-              PermissionFlagsBits.Stream,
-            ],
-          },
-          {
-            id: interaction.client.user.id,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.MoveMembers, PermissionFlagsBits.ManageRoles],
-          },
+          { id: guild.id, deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect] }, // @everyone denied
+          { id: videoVerifiedRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak, PermissionFlagsBits.Stream] },
+          { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.MoveMembers] },
         ],
       });
 
@@ -107,16 +74,11 @@ module.exports = {
         videoVerifiedRoleId: videoVerifiedRole.id,
       });
 
-      return interaction.reply({
-        content: `✅ Video event channels created!\nCategory: <#${category.id}>\nWaiting Room: <#${waitingRoom.id}>\nVideo Call: <#${videoChannel.id}>`,
-        ephemeral: true,
-      });
+      // Edit the original reply with success message
+      return interaction.editReply(`✅ Video event channels created!\nCategory: <#${category.id}>\nWaiting Room: <#${waitingRoom.id}>\nVideo Call: <#${videoChannel.id}>`);
     } catch (error) {
       console.error('Error creating video event channels:', error);
-      return interaction.reply({
-        content: '❌ Failed to create video event channels. Check bot permissions and try again.',
-        ephemeral: true,
-      });
+      return interaction.editReply('❌ Failed to create video event channels. Check bot permissions and try again.');
     }
   },
 };
