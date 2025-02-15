@@ -1,5 +1,7 @@
 const VideoEvent = require('../models/videocallevent');
 
+const gracePeriod = new Map(); // Store users who recently switched channels
+
 module.exports = {
   name: 'voiceStateUpdate',
   async execute(oldState, newState) {
@@ -12,11 +14,9 @@ module.exports = {
       return;
     }
 
-    // Fetch role using saved ID
     const videoVerifiedRole = guild.roles.cache.get(event.videoVerifiedRoleId);
-    
     if (!videoVerifiedRole) {
-      console.log(`[ERROR] "Video Verified" role ID from database is invalid. Run /createvideoevent again.`);
+      console.log(`[ERROR] Video Verified role not found. Run /createvideoevent again.`);
       return;
     }
 
@@ -28,19 +28,28 @@ module.exports = {
     const updateRole = async (member, add) => {
       try {
         if (add) {
-          await member.roles.add(videoVerifiedRole);
-          console.log(`[DEBUG] ${member.user.tag} granted Video Verified role.`);
+          if (!member.roles.cache.has(videoVerifiedRole.id)) {
+            await member.roles.add(videoVerifiedRole);
+            console.log(`[DEBUG] ${member.user.tag} granted Video Verified role.`);
+          } else {
+            console.log(`[DEBUG] ${member.user.tag} already has the role.`);
+          }
         } else {
-          await member.roles.remove(videoVerifiedRole);
-          console.log(`[DEBUG] ${member.user.tag} removed from Video Verified role.`);
+          if (member.roles.cache.has(videoVerifiedRole.id)) {
+            await member.roles.remove(videoVerifiedRole);
+            console.log(`[DEBUG] ${member.user.tag} removed from Video Verified role.`);
+          } else {
+            console.log(`[DEBUG] ${member.user.tag} does not have the role.`);
+          }
         }
       } catch (error) {
         console.error(`[ERROR] Failed to update role for ${member.user.tag}:`, error);
       }
     };
 
+    // 🎯 **User Enters the Waiting Room**
     if (newState.channelId === waitingRoomId) {
-      console.log(`[DEBUG] ${newState.member.user.tag} is in the Waiting Room.`);
+      console.log(`[DEBUG] ${newState.member.user.tag} joined the Waiting Room.`);
       if (newState.selfVideo) {
         console.log(`[DEBUG] ${newState.member.user.tag} turned ON video.`);
         await updateRole(newState.member, true);
@@ -50,13 +59,29 @@ module.exports = {
       }
     }
 
+    // 🎯 **User Moves to the Video Call Channel**
     if (newState.channelId === videoChannelId) {
-      console.log(`[DEBUG] ${newState.member.user.tag} is in the Video Call.`);
-      if (!newState.selfVideo) {
-        console.log(`[DEBUG] ${newState.member.user.tag} turned OFF video in Video Call. Moving them back.`);
-        await newState.member.voice.setChannel(waitingRoomId, 'You must have video enabled in the video call.');
-        await updateRole(newState.member, false);
+      console.log(`[DEBUG] ${newState.member.user.tag} moved to the Video Call.`);
+      
+      // **Apply Grace Period** (3 seconds)
+      gracePeriod.set(newState.member.id, true);
+      setTimeout(() => {
+        gracePeriod.delete(newState.member.id);
+      }, 3000); // Allow 3 seconds for the user to turn video back on
+
+      return; // Exit early so we don't check for video immediately
+    }
+
+    // 🎯 **User is in the Video Call but Turns Off Video (AFTER Grace Period)**
+    if (oldState.channelId === videoChannelId && !newState.selfVideo) {
+      if (gracePeriod.has(newState.member.id)) {
+        console.log(`[DEBUG] ${newState.member.user.tag} is in grace period, skipping move.`);
+        return;
       }
+
+      console.log(`[DEBUG] ${newState.member.user.tag} turned OFF video in Video Call. Moving them back.`);
+      await newState.member.voice.setChannel(waitingRoomId, 'You must have video enabled in the video call.');
+      await updateRole(newState.member, false);
     }
   },
 };
