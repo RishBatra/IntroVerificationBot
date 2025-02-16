@@ -1,101 +1,168 @@
-const VideoEvent = require('../models/videocallevent');
+const { ChannelType, PermissionFlagsBits, Collection } = require('discord.js');
 
-const activeTimers = new Map(); // Store active move timers to avoid duplicates
-
-module.exports = {
-  name: 'voiceStateUpdate',
-  async execute(oldState, newState) {
-    if (newState.member.user.bot) return;
-
-    const guild = newState.guild;
-    const event = await VideoEvent.findOne({ guildId: guild.id });
-    if (!event) {
-      console.log(`[DEBUG] No video event found for this guild.`);
-      return;
+class VoiceTextChannelManager {
+    constructor(client) {
+        this.client = client;
+        this.voiceTextChannels = new Collection();
+        this.channelCooldowns = new Collection();
+        this.excludedChannels = [
+            '693018400259047444',
+            '693034620618539068',
+        ];
+        
+        // Run cleanup every 6 hours
+        setInterval(() => this.cleanupStaleChannels(), 6 * 60 * 60 * 1000);
     }
 
-    const videoVerifiedRole = guild.roles.cache.get(event.videoVerifiedRoleId);
-    if (!videoVerifiedRole) {
-      console.log(`[ERROR] Video Verified role not found. Run /createvideoevent again.`);
-      return;
-    }
+    async getOrCreateTextChannel(voiceChannel) {
+        try {
+            if (this.excludedChannels.includes(voiceChannel.id)) {
+                return null;
+            }
 
-    const waitingRoomId = event.waitingRoomId;
-    const videoChannelId = event.videoChannelId;
+            // Prevent rapid-fire calls
+            const cooldown = this.channelCooldowns.get(voiceChannel.id);
+            if (cooldown && Date.now() - cooldown < 10000) { // 10-second cooldown
+                return this.voiceTextChannels.get(voiceChannel.id);
+            }
+            this.channelCooldowns.set(voiceChannel.id, Date.now());
 
-    console.log(`[DEBUG] User: ${newState.member.user.tag} | Channel: ${newState.channelId} | Video: ${newState.selfVideo}`);
+            // Check our cache
+            let textChannel = this.voiceTextChannels.get(voiceChannel.id);
+            if (textChannel) {
+                try {
+                    await textChannel.fetch();
+                    return textChannel;
+                } catch {
+                    this.voiceTextChannels.delete(voiceChannel.id);
+                }
+            }
 
-    const updateRole = async (member, add) => {
-      try {
-        if (add) {
-          if (!member.roles.cache.has(videoVerifiedRole.id)) {
-            await member.roles.add(videoVerifiedRole);
-            console.log(`[DEBUG] ${member.user.tag} granted Video Verified role.`);
-          }
-        } else {
-          if (member.roles.cache.has(videoVerifiedRole.id)) {
-            await member.roles.remove(videoVerifiedRole);
-            console.log(`[DEBUG] ${member.user.tag} removed from Video Verified role.`);
-          }
+            // Try to find an existing channel by name
+            textChannel = voiceChannel.parent?.children.cache.find(
+                channel =>
+                    channel.type === ChannelType.GuildText &&
+                    channel.name === `${voiceChannel.name}-text`
+            );
+            if (textChannel) {
+                this.voiceTextChannels.set(voiceChannel.id, textChannel);
+                return textChannel;
+            }
+
+            // Create a new text channel
+            textChannel = await voiceChannel.guild.channels.create({
+                name: `${voiceChannel.name}-text`,
+                type: ChannelType.GuildText,
+                parent: voiceChannel.parent,
+                permissionOverwrites: [
+                    {
+                        id: voiceChannel.guild.roles.everyone,
+                        deny: [PermissionFlagsBits.ViewChannel],
+                    },
+                    {
+                        id: this.client.user.id,
+                        allow: [
+                            PermissionFlagsBits.ViewChannel,
+                            PermissionFlagsBits.ManageChannels,
+                            PermissionFlagsBits.ManageMessages
+                        ]
+                    }
+                ],
+                reason: `Voice text channel for ${voiceChannel.name}`
+            });
+
+            this.voiceTextChannels.set(voiceChannel.id, textChannel);
+            return textChannel;
+        } catch (error) {
+            console.error(`Error in getOrCreateTextChannel: ${error.message}`);
+            return null;
         }
-      } catch (error) {
-        console.error(`[ERROR] Failed to update role for ${member.user.tag}:`, error);
-      }
-    };
-
-    // 🎯 **User Joins the Waiting Room**
-    if (newState.channelId === waitingRoomId) {
-      console.log(`[DEBUG] ${newState.member.user.tag} joined the Waiting Room.`);
-      if (newState.selfVideo) {
-        console.log(`[DEBUG] ${newState.member.user.tag} turned ON video.`);
-        await updateRole(newState.member, true);
-      } else {
-        console.log(`[DEBUG] ${newState.member.user.tag} turned OFF video.`);
-        await updateRole(newState.member, false);
-      }
     }
 
-    // 🎯 **User Moves to the Video Call Channel**
-    if (newState.channelId === videoChannelId) {
-      console.log(`[DEBUG] ${newState.member.user.tag} moved to the Video Call.`);
+    async updateTextChannelVisibility(voiceChannel, member, joined) {
+        try {
+            if (this.excludedChannels.includes(voiceChannel.id)) return;
 
-      // Cancel any existing timer for this user
-      if (activeTimers.has(newState.member.id)) {
-        clearTimeout(activeTimers.get(newState.member.id));
-        activeTimers.delete(newState.member.id);
-      }
+            const textChannel = await this.getOrCreateTextChannel(voiceChannel);
+            if (!textChannel) return;
 
-      // **Wait 5 seconds before checking video to avoid Discord's auto-off issue**
-      const timer = setTimeout(async () => {
-        activeTimers.delete(newState.member.id);
+            if (joined) {
+                // Grant the member permission to view and send messages
+                await textChannel.permissionOverwrites.edit(member, {
+                    ViewChannel: true,
+                    SendMessages: true,
+                }).catch(console.error);
 
-        // **Fetch latest state**
-        const updatedState = guild.members.cache.get(newState.member.id)?.voice;
-        if (!updatedState || updatedState.channelId !== videoChannelId) {
-          console.log(`[DEBUG] ${newState.member.user.tag} left the channel, skipping check.`);
-          return;
+                // Send a welcome message (optional)
+                await textChannel.send({
+                    content: `Welcome ${member}! This channel is linked to ${voiceChannel.name}.`,
+                    allowedMentions: { users: [member.id] }
+                }).catch(() => {});
+            } else {
+                // Remove the member's permission override
+                await textChannel.permissionOverwrites.delete(member)
+                    .catch(console.error);
+            }
+
+            // When no members are in the voice channel, purge its messages
+            if (voiceChannel.members.size === 0) {
+                await this.purgeChannelMessages(textChannel);
+            }
+        } catch (error) {
+            console.error(`Error in updateTextChannelVisibility: ${error.message}`);
         }
+    }
 
-        // **Check if video is still off after 5 seconds**
-        if (!updatedState.selfVideo) {
-          console.log(`[DEBUG] ${newState.member.user.tag} still has video OFF after 5 seconds. Moving them back.`);
-          await newState.member.voice.setChannel(waitingRoomId, 'You must have video enabled in the video call.');
-          await updateRole(newState.member, false);
-        } else {
-          console.log(`[DEBUG] ${newState.member.user.tag} successfully turned video ON, keeping them in Video Call.`);
+    // This method purges all messages in the text channel
+    async purgeChannelMessages(textChannel) {
+        try {
+            const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+            const batchSize = 100;
+            let totalDeleted = 0;
+
+            while (true) {
+                const messages = await textChannel.messages.fetch({ limit: batchSize });
+                if (messages.size === 0) break;
+
+                // Bulk-delete messages that are less than 2 weeks old
+                const recentMessages = messages.filter(msg => msg.createdTimestamp > twoWeeksAgo);
+                if (recentMessages.size > 0) {
+                    await textChannel.bulkDelete(recentMessages, true).catch(console.error);
+                    totalDeleted += recentMessages.size;
+                }
+
+                // For messages older than 2 weeks, delete one by one
+                const oldMessages = messages.filter(msg => msg.createdTimestamp <= twoWeeksAgo);
+                for (const [, message] of oldMessages) {
+                    await message.delete().catch(() => {});
+                    totalDeleted++;
+                }
+
+                if (messages.size < batchSize) break;
+            }
+
+            console.log(`Purged ${totalDeleted} messages from ${textChannel.name}`);
+        } catch (error) {
+            console.error(`Error in purgeChannelMessages: ${error.message}`);
         }
-      }, 5000); // **Wait 5 seconds before enforcing rules**
-
-      activeTimers.set(newState.member.id, timer);
-
-      return; // Exit early to prevent immediate role removal
     }
 
-    // 🎯 **User is in the Video Call but Turns Off Video (After Buffer Time)**
-    if (oldState.channelId === videoChannelId && !newState.selfVideo) {
-      console.log(`[DEBUG] ${newState.member.user.tag} turned OFF video in Video Call. Moving them back.`);
-      await newState.member.voice.setChannel(waitingRoomId, 'You must have video enabled in the video call.');
-      await updateRole(newState.member, false);
+    async cleanupStaleChannels() {
+        try {
+            // For each cached text channel, if the corresponding voice channel is empty (or missing), purge its messages.
+            for (const [voiceId, textChannel] of this.voiceTextChannels) {
+                const voiceChannel = this.client.channels.cache.get(voiceId);
+                if (!voiceChannel || voiceChannel.members.size === 0) {
+                    await this.purgeChannelMessages(textChannel);
+                    // Optionally, leave the text channel in the cache so it can be reused later.
+                    // If you prefer to force a new channel creation next time, uncomment the following line:
+                    // this.voiceTextChannels.delete(voiceId);
+                }
+            }
+        } catch (error) {
+            console.error(`Error in cleanupStaleChannels: ${error.message}`);
+        }
     }
-  },
-};
+}
+
+module.exports = VoiceTextChannelManager;
