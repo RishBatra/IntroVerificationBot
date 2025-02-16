@@ -5,6 +5,7 @@ const commandHandler = require('./handlers/commandHandler');
 const eventHandler = require('./handlers/eventHandler');
 const mongoose = require('mongoose');
 
+// Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
@@ -14,6 +15,7 @@ mongoose.connect(process.env.MONGODB_URI, {
     console.error('Failed to connect to MongoDB', err);
 });
 
+// Create the client
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -31,6 +33,10 @@ const client = new Client({
     ],
     partials: [Partials.Channel] // Required to read DMs
 });
+
+// Attach the VoiceTextChannelManager to the client
+const VoiceTextChannelManager = require('./utils/voiceTextChannelManager'); // Adjust the path accordingly
+client.voiceTextManager = new VoiceTextChannelManager(client);
 
 // Run the deploy-commands.js script
 exec('node deploy-command.js', (error, stdout, stderr) => {
@@ -59,10 +65,7 @@ exec('node deploy-command.js', (error, stdout, stderr) => {
         // Example of changing status periodically
         const statuses = [
             { name: 'Hum gay hain hume server ke liye log chaiye', type: ActivityType.Playing },
-            // { name: 'Hum gay hain hume server ke liye log chaiye', type: ActivityType.Playing },
-            // { name: 'Server ke loog', type: ActivityType.Watching },
-            // { name: 'Hum gay hain hume server ke liye log chaiye', type: ActivityType.Watching },
-            // { name: 'LGBTQIndiA zindabad', type: ActivityType.Listening },
+            // Additional statuses can be added here
         ];
 
         setInterval(() => {
