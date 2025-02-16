@@ -97,7 +97,7 @@ module.exports = {
     }
     // ***************** Regular Voice Channel Logic *****************
     else if (voiceTextManager && !isVideoEventCategory) {
-      // If the member left voice entirely (newState.channel is null):
+      // If the member left voice completely (newState.channel is null):
       if (!newState.channel) {
         console.log(`[VideoEvent] Member ${newState.member.id} left all voice channels.`);
         
@@ -108,7 +108,8 @@ module.exports = {
         
         // Additionally, iterate over ALL cached voice text channels and remove their view permission.
         for (const [voiceId, textChannel] of voiceTextManager.voiceTextChannels) {
-          await textChannel.permissionOverwrites.edit(newState.member, { ViewChannel: false }).catch(console.error);
+          await textChannel.permissionOverwrites.edit(newState.member, { ViewChannel: false })
+            .catch(console.error);
           console.log(`[VoiceTextChannelManager] Removed access for member ${newState.member.id} from text channel ${textChannel.id}.`);
           
           // If the associated voice channel is empty, purge its messages.
@@ -122,7 +123,17 @@ module.exports = {
       // If the member joins a voice channel:
       else {
         console.log(`[VideoEvent] Processing regular voice channel update for member ${newState.member.id} on channel ${newState.channel.id}.`);
+        // Grant access for the channel the member just joined.
         await voiceTextManager.updateTextChannelVisibility(newState.channel, newState.member, true);
+        
+        // Remove access from all other voice-linked text channels.
+        for (const [voiceId, textChannel] of voiceTextManager.voiceTextChannels) {
+          if (voiceId !== newState.channel.id) {
+            await textChannel.permissionOverwrites.edit(newState.member, { ViewChannel: false })
+              .catch(console.error);
+            console.log(`[VoiceTextChannelManager] Removed access for member ${newState.member.id} from text channel ${textChannel.id} (not current voice channel).`);
+          }
+        }
       }
     } else {
       console.log(`[VideoEvent] voiceTextManager is not defined or not applicable.`);
