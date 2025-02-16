@@ -46,7 +46,7 @@ class VoiceTextChannelManager {
         }
       }
 
-      // Look for existing channel in the same category (if available)
+      // Look for an existing text channel in the same category (if available)
       textChannel = voiceChannel.parent?.children.cache.find(
         channel =>
           channel.type === ChannelType.GuildText &&
@@ -111,12 +111,12 @@ class VoiceTextChannelManager {
       }
 
       if (joined) {
+        // Grant permission so the member can see and use the text channel.
         await textChannel.permissionOverwrites.edit(member, {
           ViewChannel: true,
           SendMessages: true,
         }).catch(console.error);
-
-        console.log(`[VoiceTextChannelManager] Updated permissions for member ${member.id} in text channel ${textChannel.id}.`);
+        console.log(`[VoiceTextChannelManager] Granted permissions for member ${member.id} in text channel ${textChannel.id}.`);
 
         // Send a welcome message
         await textChannel.send({
@@ -124,41 +124,25 @@ class VoiceTextChannelManager {
           allowedMentions: { users: [member.id] },
         }).catch((err) => console.error(`[VoiceTextChannelManager] Failed to send welcome message: ${err}`));
       } else {
-        await textChannel.permissionOverwrites.delete(member)
-          .catch(console.error);
-        console.log(`[VoiceTextChannelManager] Removed permissions for member ${member.id} in text channel ${textChannel.id}.`);
+        // When the member leaves, explicitly deny their permission to view the text channel.
+        await textChannel.permissionOverwrites.edit(member, { ViewChannel: false }).catch(console.error);
+        console.log(`[VoiceTextChannelManager] Set deny for member ${member.id} in text channel ${textChannel.id}.`);
       }
 
-      // If the voice channel is empty, purge messages and hide the text channel
+      // If the voice channel is empty, purge all messages in the text channel.
       if (voiceChannel.members.size === 0) {
-        console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is empty. Purging and hiding text channel ${textChannel.id}.`);
-        await this.purgeAndHideTextChannel(textChannel);
+        console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is empty. Purging messages from text channel ${textChannel.id}.`);
+        await this.purgeChannelMessages(textChannel);
       }
     } catch (error) {
       console.error(`[VoiceTextChannelManager] Error in updateTextChannelVisibility: ${error.message}`);
     }
   }
 
-  // Purges messages then hides the text channel from everyone
-  async purgeAndHideTextChannel(textChannel) {
-    console.log(`[VoiceTextChannelManager] purgeAndHideTextChannel called for ${textChannel.id}.`);
-    try {
-      await this.purgeChannelMessages(textChannel); // Purge messages first
-      // Then hide the channel
-      await textChannel.permissionOverwrites.edit(textChannel.guild.roles.everyone, {
-        ViewChannel: false,
-      });
-      console.log(`[VoiceTextChannelManager] Purged messages and hid text channel ${textChannel.id}.`);
-    } catch (error) {
-      console.error(`[VoiceTextChannelManager] Error in purgeAndHideTextChannel: ${error.message}`);
-    }
-  }
-
-  // Purge messages in the text channel without hiding it
+  // Purge messages in the text channel (without hiding the channel)
   async purgeChannelMessages(textChannel) {
     console.log(`[VoiceTextChannelManager] purgeChannelMessages called for ${textChannel.id}.`);
     try {
-      const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
       const batchSize = 100;
       let totalDeleted = 0;
 
@@ -166,9 +150,9 @@ class VoiceTextChannelManager {
         const messages = await textChannel.messages.fetch({ limit: batchSize });
         if (messages.size === 0) break;
 
-        // Filter messages by age
-        const recentMessages = messages.filter(msg => msg.createdTimestamp > twoWeeksAgo);
-        const oldMessages = messages.filter(msg => msg.createdTimestamp <= twoWeeksAgo);
+        // Bulk delete messages younger than 14 days, and delete older ones individually.
+        const recentMessages = messages.filter(msg => Date.now() - msg.createdTimestamp < 14 * 24 * 60 * 60 * 1000);
+        const oldMessages = messages.filter(msg => Date.now() - msg.createdTimestamp >= 14 * 24 * 60 * 60 * 1000);
 
         if (recentMessages.size > 0) {
           await textChannel.bulkDelete(recentMessages, true).catch(console.error);
@@ -194,8 +178,8 @@ class VoiceTextChannelManager {
       for (const [voiceId, textChannel] of this.voiceTextChannels) {
         const voiceChannel = this.client.channels.cache.get(voiceId);
         if (!voiceChannel || voiceChannel.members.size === 0) {
-          console.log(`[VoiceTextChannelManager] Cleaning up text channel ${textChannel.id} for stale voice channel ${voiceId}.`);
-          await this.purgeAndHideTextChannel(textChannel);
+          console.log(`[VoiceTextChannelManager] Cleaning up text channel ${textChannel.id} for stale voice channel ${voiceId}. Purging messages.`);
+          await this.purgeChannelMessages(textChannel);
           this.voiceTextChannels.delete(voiceId);
         }
       }
