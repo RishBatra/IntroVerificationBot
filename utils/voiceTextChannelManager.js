@@ -16,9 +16,11 @@ class VoiceTextChannelManager {
 
     async getOrCreateTextChannel(voiceChannel) {
         try {
-            // Add check for Video Events category
+            // Exclude video event channels
+            const event = await this.client.videoEventDB.findOne({ guildId: voiceChannel.guild.id });
             if (this.excludedChannels.includes(voiceChannel.id) || 
-                voiceChannel.parent?.name === 'Video Events') {
+                voiceChannel.parent?.name === 'Video Events' || 
+                (event && [event.videoChannelId, event.waitingRoomId].includes(voiceChannel.id))) {
                 return null;
             }
 
@@ -29,7 +31,7 @@ class VoiceTextChannelManager {
             }
             this.channelCooldowns.set(voiceChannel.id, Date.now());
 
-            // Check our cache
+            // Check cache
             let textChannel = this.voiceTextChannels.get(voiceChannel.id);
             if (textChannel) {
                 try {
@@ -40,7 +42,7 @@ class VoiceTextChannelManager {
                 }
             }
 
-            // Try to find an existing channel by name
+            // Try to find an existing channel
             textChannel = voiceChannel.parent?.children.cache.find(
                 channel =>
                     channel.type === ChannelType.GuildText &&
@@ -51,7 +53,7 @@ class VoiceTextChannelManager {
                 return textChannel;
             }
 
-            // Create a new text channel
+            // Create new text channel
             textChannel = await voiceChannel.guild.channels.create({
                 name: `${voiceChannel.name}-text`,
                 type: ChannelType.GuildText,
@@ -89,24 +91,19 @@ class VoiceTextChannelManager {
             if (!textChannel) return;
 
             if (joined) {
-                // Grant the member permission to view and send messages
                 await textChannel.permissionOverwrites.edit(member, {
                     ViewChannel: true,
                     SendMessages: true,
                 }).catch(console.error);
 
-                // Send a welcome message (optional)
                 await textChannel.send({
                     content: `Welcome ${member}! This channel is linked to ${voiceChannel.name}.`,
                     allowedMentions: { users: [member.id] }
                 }).catch(() => {});
             } else {
-                // Remove the member's permission override
-                await textChannel.permissionOverwrites.delete(member)
-                    .catch(console.error);
+                await textChannel.permissionOverwrites.delete(member).catch(console.error);
             }
 
-            // When no members are in the voice channel, purge its messages
             if (voiceChannel.members.size === 0) {
                 await this.purgeChannelMessages(textChannel);
             }
@@ -115,7 +112,6 @@ class VoiceTextChannelManager {
         }
     }
 
-    // This method purges all messages in the text channel
     async purgeChannelMessages(textChannel) {
         try {
             const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
@@ -126,23 +122,20 @@ class VoiceTextChannelManager {
                 const messages = await textChannel.messages.fetch({ limit: batchSize });
                 if (messages.size === 0) break;
 
-                // Bulk-delete messages that are less than 2 weeks old
                 const recentMessages = messages.filter(msg => msg.createdTimestamp > twoWeeksAgo);
                 if (recentMessages.size > 0) {
                     try {
                         await textChannel.bulkDelete(recentMessages, true);
                     } catch (error) {
-                        // Handle Unknown Message error gracefully
                         if (error.code === 10008) {
                             console.log('Attempted to delete already deleted messages, continuing...');
                         } else {
-                            throw error; // Re-throw other errors
+                            throw error;
                         }
                     }
                     totalDeleted += recentMessages.size;
                 }
 
-                // For messages older than 2 weeks, delete one by one
                 const oldMessages = messages.filter(msg => msg.createdTimestamp <= twoWeeksAgo);
                 for (const [, message] of oldMessages) {
                     await message.delete().catch(() => {});
@@ -155,23 +148,6 @@ class VoiceTextChannelManager {
             console.log(`Purged ${totalDeleted} messages from ${textChannel.name}`);
         } catch (error) {
             console.error(`Error in purgeChannelMessages: ${error.message}`);
-        }
-    }
-
-    async cleanupStaleChannels() {
-        try {
-            // For each cached text channel, if the corresponding voice channel is empty (or missing), purge its messages.
-            for (const [voiceId, textChannel] of this.voiceTextChannels) {
-                const voiceChannel = this.client.channels.cache.get(voiceId);
-                if (!voiceChannel || voiceChannel.members.size === 0) {
-                    await this.purgeChannelMessages(textChannel);
-                    // Optionally, leave the text channel in the cache so it can be reused later.
-                    // If you prefer to force a new channel creation next time, uncomment the following line:
-                    // this.voiceTextChannels.delete(voiceId);
-                }
-            }
-        } catch (error) {
-            console.error(`Error in cleanupStaleChannels: ${error.message}`);
         }
     }
 }
