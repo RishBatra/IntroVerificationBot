@@ -6,9 +6,12 @@ class VoiceTextChannelManager {
     this.voiceTextChannels = new Collection();
     this.channelCooldowns = new Collection();
     this.excludedChannels = [
-      '693018400259047444',
+      '693018400259047444',  // no mute
       '693034620618539068',
     ];
+    // Initialize as an array instead of a Set
+    this.videoEventCategoryNames = ['Video Events', '🎥 Video Event'];
+    console.log('[VoiceTextChannelManager] Initialized with excluded channels:', this.excludedChannels);
 
     // Cleanup interval for stale channels (every 6 hours)
     setInterval(() => this.cleanupStaleChannels(), 6 * 60 * 60 * 1000);
@@ -19,78 +22,80 @@ class VoiceTextChannelManager {
     console.log(`[VoiceTextChannelManager] getOrCreateTextChannel called for ${voiceChannel?.name}`);
 
     if (!voiceChannel) {
-        console.log('[VoiceTextChannelManager] No voice channel provided');
-        return null;
+      console.log('[VoiceTextChannelManager] No voice channel provided');
+      return null;
     }
 
     try {
-        // Skip if channel is in a video event category
-        if (voiceChannel.parent && this.videoEventCategories.has(voiceChannel.parent.name)) {
-            console.log(`[VoiceTextChannelManager] Channel in video event category, skipping`);
-            return null;
-        }
-
-        // Skip if channel is excluded
-        if (this.excludedChannels.includes(voiceChannel.id)) {
-            console.log(`[VoiceTextChannelManager] Channel is excluded`);
-            return null;
-        }
-
-        // First check if we already have a text channel in our cache
-        let textChannel = this.voiceTextChannels.get(voiceChannel.id);
-        if (textChannel) {
-            try {
-                await textChannel.fetch();
-                console.log(`[VoiceTextChannelManager] Using existing cached text channel: ${textChannel.name}`);
-                return textChannel;
-            } catch (error) {
-                console.log(`[VoiceTextChannelManager] Cached channel no longer exists, removing from cache`);
-                this.voiceTextChannels.delete(voiceChannel.id);
-            }
-        }
-
-        // Look for existing text channel in the category
-        const existingChannel = voiceChannel.parent?.children.cache.find(
-            channel => 
-                channel.type === ChannelType.GuildText && 
-                channel.name === `${voiceChannel.name}-text`
-        );
-
-        if (existingChannel) {
-            console.log(`[VoiceTextChannelManager] Found existing text channel: ${existingChannel.name}`);
-            this.voiceTextChannels.set(voiceChannel.id, existingChannel);
-            return existingChannel;
-        }
-
-        // Create new channel only if none exists
-        console.log('[VoiceTextChannelManager] Creating new text channel...');
-        const channelData = {
-            name: `${voiceChannel.name}-text`,
-            type: ChannelType.GuildText,
-            parent: voiceChannel.parent,
-            permissionOverwrites: [
-                {
-                    id: voiceChannel.guild.roles.everyone,
-                    deny: [PermissionFlagsBits.ViewChannel],
-                },
-                {
-                    id: this.client.user.id,
-                    allow: [
-                        PermissionFlagsBits.ViewChannel,
-                        PermissionFlagsBits.ManageChannels,
-                        PermissionFlagsBits.ManageMessages,
-                    ],
-                },
-            ],
-        };
-
-        textChannel = await voiceChannel.guild.channels.create(channelData);
-        this.voiceTextChannels.set(voiceChannel.id, textChannel);
-        console.log(`[VoiceTextChannelManager] Created new text channel: ${textChannel.name}`);
-        return textChannel;
-    } catch (error) {
-        console.error(`[VoiceTextChannelManager] Error: ${error.message}`);
+      // Check if channel is excluded
+      if (this.excludedChannels.includes(voiceChannel.id)) {
+        console.log(`[VoiceTextChannelManager] Channel ${voiceChannel.id} is excluded`);
         return null;
+      }
+
+      // Check if channel is in video event category
+      const categoryName = voiceChannel.parent?.name;
+      if (categoryName && this.videoEventCategoryNames.includes(categoryName)) {
+        console.log(`[VoiceTextChannelManager] Channel in video event category (${categoryName}), skipping`);
+        return null;
+      }
+
+      // First check if we already have a text channel in our cache
+      let textChannel = this.voiceTextChannels.get(voiceChannel.id);
+      if (textChannel) {
+        try {
+          await textChannel.fetch();
+          console.log(`[VoiceTextChannelManager] Using existing cached text channel: ${textChannel.name}`);
+          return textChannel;
+        } catch (error) {
+          console.log(`[VoiceTextChannelManager] Cached channel no longer exists, removing from cache`);
+          this.voiceTextChannels.delete(voiceChannel.id);
+        }
+      }
+
+      // Look for existing text channel in the category
+      const existingChannel = voiceChannel.parent?.children.cache.find(
+        channel => 
+          channel.type === ChannelType.GuildText && 
+          channel.name === `${voiceChannel.name}-text`
+      );
+
+      if (existingChannel) {
+        console.log(`[VoiceTextChannelManager] Found existing text channel: ${existingChannel.name}`);
+        this.voiceTextChannels.set(voiceChannel.id, existingChannel);
+        return existingChannel;
+      }
+
+      // Create new channel
+      console.log(`[VoiceTextChannelManager] Creating new text channel for ${voiceChannel.name}`);
+      const channelData = {
+        name: `${voiceChannel.name}-text`,
+        type: ChannelType.GuildText,
+        parent: voiceChannel.parent,
+        permissionOverwrites: [
+          {
+            id: voiceChannel.guild.roles.everyone,
+            deny: [PermissionFlagsBits.ViewChannel],
+          },
+          {
+            id: this.client.user.id,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.ManageChannels,
+              PermissionFlagsBits.ManageMessages,
+            ],
+          },
+        ],
+      };
+
+      textChannel = await voiceChannel.guild.channels.create(channelData);
+      this.voiceTextChannels.set(voiceChannel.id, textChannel);
+      console.log(`[VoiceTextChannelManager] Created new text channel: ${textChannel.name}`);
+      return textChannel;
+
+    } catch (error) {
+      console.error(`[VoiceTextChannelManager] Error: ${error.message}`);
+      return null;
     }
   }
 
