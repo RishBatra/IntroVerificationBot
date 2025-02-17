@@ -81,18 +81,24 @@ module.exports = {
                     const messages = await thread.messages.fetch({ limit: 10 });
                     const sortedMessages = Array.from(messages.values()).sort((a, b) => a.createdTimestamp - b.createdTimestamp);
                     
-                    // Find the first non-system message that contains the verification questions
+                    // Find the first message with verification questions
                     const firstMessage = sortedMessages.find(msg => 
                         msg.embeds.length > 0 && 
                         msg.embeds[0].title === 'Verification Questions'
                     );
 
                     if (firstMessage) {
-                        const verifierMatch = firstMessage.embeds[0].description.match(/<@(\d+)>/);
-                        if (verifierMatch) {
-                            const verifierId = verifierMatch[1];
-                            const verifier = await interaction.guild.members.fetch(verifierId);
-                            verifierInfo = `\nVerifier: ${verifier.nickname || verifier.user.username}`;
+                        // The greeting format is "Hello @user, I am @verifier"
+                        // So we want to get the second mention
+                        const mentions = firstMessage.embeds[0].description.match(/<@\d+>/g);
+                        if (mentions && mentions.length >= 2) {
+                            const verifierId = mentions[1].match(/\d+/)[0];
+                            try {
+                                const verifier = await interaction.guild.members.fetch(verifierId);
+                                verifierInfo = `\nVerifier: ${verifier.nickname || verifier.user.username}`;
+                            } catch (error) {
+                                verifierInfo = '\nVerifier: Left Server';
+                            }
                         }
                     }
                 } catch (error) {
