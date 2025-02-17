@@ -8,44 +8,37 @@ module.exports = {
       // Ignore bot updates
       if (newState.member.user.bot) return;
 
-      console.log(`[VideoEvent] voiceStateUpdate triggered. Old channel: ${oldState.channelId} New channel: ${newState.channelId}`);
-
       // Get video event configuration
       const videoEvent = await VideoEvent.findOne({ guildId: newState.guild.id });
       
-      // If no video event exists, exit early
-      if (!videoEvent) {
-        console.log(`[VideoEvent] No video event configuration found for guild ${newState.guild.id}`);
-        return;
-      }
+      // If no video event exists, don't log anything and exit early
+      if (!videoEvent) return;
 
-      // Get current channel (prefer newState's channel)
-      const currentChannel = newState.channel || oldState.channel;
-      if (!currentChannel) {
-        console.log('[VideoEvent] No channel found in state update');
-        return;
-      }
+      // Now we know there's a video event, let's check if this update involves video channels
+      const isOldChannelVideo = oldState.channel && [videoEvent.waitingRoomId, videoEvent.videoChannelId].includes(oldState.channelId);
+      const isNewChannelVideo = newState.channel && [videoEvent.waitingRoomId, videoEvent.videoChannelId].includes(newState.channelId);
 
-      // Check if current channel is a video event channel
-      const isVideoChannel = [
-        videoEvent.waitingRoomId,
-        videoEvent.videoChannelId
-      ].includes(currentChannel.id);
+      // Only process if either channel is a video event channel
+      if (!isOldChannelVideo && !isNewChannelVideo) return;
 
-      if (!isVideoChannel) {
-        console.log(`[VideoEvent] Channel ${currentChannel.name} is not a video event channel`);
-        return;
-      }
+      console.log(`[VideoEvent] Processing video channel update for ${newState.member.user.tag}`);
 
       const videoVerifiedRole = newState.guild.roles.cache.get(videoEvent.videoVerifiedRoleId);
       if (!videoVerifiedRole) {
-        console.error(`[VideoEvent] Video Verified role not found for guild ${newState.guild.id}`);
+        console.error(`[VideoEvent] Video Verified role not found`);
         return;
       }
 
-      const guild = newState.guild;
       const voiceTextManager = newState.client.voiceTextManager;
+      const guild = newState.guild;
 
+      // Use newState.channel if available; otherwise, fallback to oldState.channel.
+      const currentChannel = newState.channel || oldState.channel;
+      if (!currentChannel) {
+        console.log(`[VideoEvent] No channel available in voice state update.`);
+        return;
+      }
+      
       // Determine if the current voice channel belongs to the "Video Events" category.
       const isVideoEventCategory = currentChannel.parent?.name === 'Video Events';
       console.log(`[VideoEvent] Current channel parent: ${currentChannel.parent?.name}. isVideoEventCategory: ${isVideoEventCategory}`);
