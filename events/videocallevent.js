@@ -4,70 +4,139 @@ const Whitelist = require('../models/whitelist');
 module.exports = {
   name: 'voiceStateUpdate',
   async execute(oldState, newState) {
-    // Ignore bot updates
+    console.log(`[VideoEvent] voiceStateUpdate triggered. Old channel: ${oldState.channelId} New channel: ${newState.channelId}`);
+    
+    // Ignore bot updates.
     if (newState.member.user.bot) return;
 
     const guild = newState.guild;
     const videoEvent = await VideoEvent.findOne({ guildId: guild.id });
-    
-    // If no video event configured, exit early
-    if (!videoEvent) return;
+    const voiceTextManager = newState.client.voiceTextManager;
 
-    // Get current channel (prefer newState's channel)
+    // Use newState.channel if available; otherwise, fallback to oldState.channel.
     const currentChannel = newState.channel || oldState.channel;
-    if (!currentChannel) return;
-
-    // Check if this is a video event channel
-    const isVideoChannel = [
-      videoEvent.waitingRoomId,
-      videoEvent.videoChannelId
-    ].includes(currentChannel.id);
-
-    // Only process if this is a video event channel
-    if (isVideoChannel) {
+    if (!currentChannel) {
+      console.log(`[VideoEvent] No channel available in voice state update.`);
+      return;
+    }
+    
+    // Determine if the current voice channel belongs to the "Video Events" category.
+    const isVideoEventCategory = currentChannel.parent?.name === 'Video Events';
+    console.log(`[VideoEvent] Current channel parent: ${currentChannel.parent?.name}. isVideoEventCategory: ${isVideoEventCategory}`);
+    
+    // ***************** Video Event Logic *****************
+    if (videoEvent && isVideoEventCategory) {
+      console.log(`[VideoEvent] Video event configured and channel is in Video Events category.`);
       const videoVerifiedRole = guild.roles.cache.get(videoEvent.videoVerifiedRoleId);
+      const waitingRoomId = videoEvent.waitingRoomId;
+      const videoChannelId = videoEvent.videoChannelId;
+
       if (!videoVerifiedRole) {
-        console.log(`[VideoEvent] ERROR: Video Verified role not found for guild ${guild.id}`);
+        console.log(`[VideoEvent] ERROR: Video Verified role not found. Run /createvideoevent again.`);
         return;
       }
 
-      // Check whitelist
-      const isWhitelisted = await Whitelist.findOne({ 
-        guildId: guild.id, 
-        userId: newState.member.id 
-      });
+      const isWhitelisted = await Whitelist.findOne({ guildId: guild.id, userId: newState.member.id });
       if (isWhitelisted) {
-        console.log(`[VideoEvent] Member ${newState.member.id} is whitelisted`);
+        console.log(`[VideoEvent] Member ${newState.member.id} is whitelisted. Skipping video event logic.`);
         return;
       }
 
-      // Handle waiting room
-      if (newState.channelId === videoEvent.waitingRoomId) {
+      const updateRole = async (member, add) => {
+        try {
+          if (add) {
+            if (!member.roles.cache.has(videoVerifiedRole.id)) {
+              await member.roles.add(videoVerifiedRole);
+              console.log(`[VideoEvent] Added videoVerifiedRole to ${member.id}`);
+            }
+          } else {
+            if (member.roles.cache.has(videoVerifiedRole.id)) {
+              await member.roles.remove(videoVerifiedRole);
+              console.log(`[VideoEvent] Removed videoVerifiedRole from ${member.id}`);
+            }
+          }
+        } catch (error) {
+          console.error(`[VideoEvent] Failed to update role for ${member.user.tag}: ${error}`);
+        }
+      };
+
+      // When a member joins the waiting room channel.
+      if (newState.channelId === waitingRoomId) {
+        console.log(`[VideoEvent] Member ${newState.member.id} joined Waiting Room (${waitingRoomId}).`);
         if (newState.selfVideo) {
-          await newState.member.roles.add(videoVerifiedRole);
-          console.log(`[VideoEvent] Granted video role to ${newState.member.id}`);
+          await updateRole(newState.member, true);
         } else {
-          await newState.member.roles.remove(videoVerifiedRole);
-          console.log(`[VideoEvent] Removed video role from ${newState.member.id}`);
+          await updateRole(newState.member, false);
         }
       }
 
-      // Handle video channel
-      if (newState.channelId === videoEvent.videoChannelId) {
+      // When a member joins the video channel, set a timeout for further actions.
+      if (newState.channelId === videoChannelId) {
+        console.log(`[VideoEvent] Member ${newState.member.id} joined Video Channel (${videoChannelId}).`);
         setTimeout(async () => {
           const updatedState = guild.members.cache.get(newState.member.id)?.voice;
-          if (!updatedState || updatedState.channelId !== videoEvent.videoChannelId) {
+          if (!updatedState || updatedState.channelId !== videoChannelId || updatedState.selfVideo) {
+            console.log(`[VideoEvent] Member ${newState.member.id} did not stay in Video Channel or is sharing video; no further action.`);
             return;
           }
-
-          if (!updatedState.selfVideo) {
-            console.log(`[VideoEvent] Moving ${newState.member.id} to waiting room - no video`);
-            await newState.member.voice.setChannel(videoEvent.waitingRoomId, 
-              'You must have video enabled in the video call.');
-            await newState.member.roles.remove(videoVerifiedRole);
+          console.log(`[VideoEvent] Moving member ${newState.member.id} to Waiting Room (${waitingRoomId}) and updating roles.`);
+          await newState.member.voice.setChannel(waitingRoomId);
+          await updateRole(newState.member, false);
+          
+          // Purge messages if the linked text channel is no longer in use.
+          if (voiceTextManager) {
+            voiceTextManager.channelCooldowns.delete(newState.channelId);
+            const textChannel = await voiceTextManager.getOrCreateTextChannel(currentChannel);
+            if (textChannel && currentChannel.members.size === 0) {
+              console.log(`[VideoEvent] Purging messages for text channel ${textChannel.id}.`);
+              await voiceTextManager.purgeChannelMessages(textChannel);
+            }
           }
         }, videoEvent.timeoutDuration || 10000);
       }
+    }
+    // ***************** Regular Voice Channel Logic *****************
+    else if (voiceTextManager && !isVideoEventCategory) {
+      // If the member left voice completely (newState.channel is null):
+      if (!newState.channel) {
+        console.log(`[VideoEvent] Member ${newState.member.id} left all voice channels.`);
+        
+        // Remove their access from the text channel linked to the channel they just left.
+        if (oldState.channel) {
+          await voiceTextManager.updateTextChannelVisibility(oldState.channel, newState.member, false);
+        }
+        
+        // Additionally, iterate over ALL cached voice text channels and remove their view permission.
+        for (const [voiceId, textChannel] of voiceTextManager.voiceTextChannels) {
+          await textChannel.permissionOverwrites.edit(newState.member, { ViewChannel: false })
+            .catch(console.error);
+          console.log(`[VoiceTextChannelManager] Removed access for member ${newState.member.id} from text channel ${textChannel.id}.`);
+          
+          // If the associated voice channel is empty, purge its messages.
+          const voiceChannel = guild.channels.cache.get(voiceId);
+          if (!voiceChannel || voiceChannel.members.size === 0) {
+            console.log(`[VoiceTextChannelManager] Voice channel ${voiceId} is empty. Purging messages from text channel ${textChannel.id}.`);
+            await voiceTextManager.purgeChannelMessages(textChannel);
+          }
+        }
+      }
+      // If the member joins a voice channel:
+      else {
+        console.log(`[VideoEvent] Processing regular voice channel update for member ${newState.member.id} on channel ${newState.channel.id}.`);
+        // Grant access for the channel the member just joined.
+        await voiceTextManager.updateTextChannelVisibility(newState.channel, newState.member, true);
+        
+        // Remove access from all other voice-linked text channels.
+        for (const [voiceId, textChannel] of voiceTextManager.voiceTextChannels) {
+          if (voiceId !== newState.channel.id) {
+            await textChannel.permissionOverwrites.edit(newState.member, { ViewChannel: false })
+              .catch(console.error);
+            console.log(`[VoiceTextChannelManager] Removed access for member ${newState.member.id} from text channel ${textChannel.id} (not current voice channel).`);
+          }
+        }
+      }
+    } else {
+      console.log(`[VideoEvent] voiceTextManager is not defined or not applicable.`);
     }
   }
 };
