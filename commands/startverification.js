@@ -45,6 +45,19 @@ module.exports = {
 
         await messageListChannel.send(`<@${executor.user.id}> (${executorNick}) is messaging <@${targetUser.id}> (${targetNick})`);
 
+        // Check if user already has an active verification thread
+        const existingThreads = await verificationHelpChannel.threads.fetchActive();
+        const existingThread = existingThreads.threads.find(thread => 
+            thread.name === `Verification - ${targetUser.tag}`
+        );
+
+        if (existingThread) {
+            return interaction.editReply({ 
+                content: `There is already an active verification thread for this user. [Go to thread](https://discord.com/channels/${interaction.guildId}/${existingThread.id})`, 
+                ephemeral: true 
+            });
+        }
+
         // Create a private thread in verification-help
         try {
             const thread = await verificationHelpChannel.threads.create({

@@ -65,6 +65,22 @@ module.exports = {
         await interaction.deferReply({ ephemeral: true });
 
         try {
+            // Find and close the verification thread if it exists
+            const verificationHelpChannel = interaction.guild.channels.cache.find(channel => channel.name === 'verification-help');
+            if (verificationHelpChannel) {
+                const threads = await verificationHelpChannel.threads.fetchActive();
+                const userThread = threads.threads.find(thread => thread.name === `Verification - ${user.tag}`);
+                if (userThread) {
+                    await userThread.send({
+                        embeds: [new EmbedBuilder()
+                            .setColor(0x00ff00)
+                            .setDescription('✅ Verification completed! This thread will be archived.')
+                            .setTimestamp()]
+                    });
+                    await userThread.setArchived(true);
+                }
+            }
+
             // Add the verified role to the target user
             await member.roles.add(verifiedRole);
             console.log('Verified role added.');
