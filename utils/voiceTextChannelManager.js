@@ -9,43 +9,42 @@ class VoiceTextChannelManager {
       '693018400259047444',
       '693034620618539068',
     ];
-
-    // Add property to track video event categories
     this.videoEventCategories = new Set();
-    
-    // Load existing video event categories
-    this.loadVideoEventCategories();
+    this.videoEventChannels = new Set();
+    this.loadVideoEventData();
 
     // Cleanup interval for stale channels (every 6 hours)
     setInterval(() => this.cleanupStaleChannels(), 6 * 60 * 60 * 1000);
     console.log('[VoiceTextChannelManager] Initialized.');
   }
 
-  // Add new method to load video event categories
-  async loadVideoEventCategories() {
+  async loadVideoEventData() {
     try {
       const VideoEvent = require('../models/videocallevent');
       const events = await VideoEvent.find({});
       events.forEach(event => {
         this.videoEventCategories.add(event.categoryId);
+        this.videoEventChannels.add(event.waitingRoomId);
+        this.videoEventChannels.add(event.videoChannelId);
+        this.videoEventChannels.add(event.videoTextChannelId);
       });
-      console.log(`[VoiceTextChannelManager] Loaded ${this.videoEventCategories.size} video event categories`);
+      console.log(`[VoiceTextChannelManager] Loaded ${this.videoEventCategories.size} video event categories and ${this.videoEventChannels.size} channels`);
     } catch (error) {
-      console.error('[VoiceTextChannelManager] Error loading video event categories:', error);
+      console.error('[VoiceTextChannelManager] Error loading video event data:', error);
     }
   }
 
   async getOrCreateTextChannel(voiceChannel) {
     console.log(`[VoiceTextChannelManager] getOrCreateTextChannel called for voice channel ID: ${voiceChannel.id}`);
     try {
-      // Check if channel is in a video event category
-      if (this.videoEventCategories.has(voiceChannel.parent?.id)) {
-        console.log(`[VoiceTextChannelManager] Skipping text channel creation for video event channel ${voiceChannel.id}`);
+      if (this.excludedChannels.includes(voiceChannel.id)) {
+        console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is excluded.`);
         return null;
       }
 
-      if (this.excludedChannels.includes(voiceChannel.id)) {
-        console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is excluded.`);
+      if (this.videoEventCategories.has(voiceChannel.parent?.id) || 
+          this.videoEventChannels.has(voiceChannel.id)) {
+        console.log(`[VoiceTextChannelManager] Skipping text channel creation for video event channel ${voiceChannel.id}`);
         return null;
       }
 

@@ -44,6 +44,14 @@ module.exports = {
       // Remove event from database
       await VideoEvent.deleteOne({ guildId: guild.id });
 
+      // When cleaning up
+      if (interaction.client.voiceTextManager) {
+        interaction.client.voiceTextManager.videoEventCategories.delete(category.id);
+        interaction.client.voiceTextManager.videoEventChannels.delete(event.waitingRoomId);
+        interaction.client.voiceTextManager.videoEventChannels.delete(event.videoChannelId);
+        interaction.client.voiceTextManager.videoEventChannels.delete(event.videoTextChannelId);
+      }
+
       return interaction.editReply('✅ Video event and all related channels, roles, and whitelist data have been removed.');
     } catch (error) {
       console.error('Error cleaning up video event:', error);

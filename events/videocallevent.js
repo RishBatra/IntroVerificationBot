@@ -27,15 +27,10 @@ module.exports = {
     // ***************** Video Event Logic *****************
     if (videoEvent && isVideoEventCategory) {
       console.log(`[VideoEvent] Video event configured and channel is in Video Events category.`);
-      
-      // Add the category to voiceTextManager's excluded categories if not already there
-      if (voiceTextManager && !voiceTextManager.videoEventCategories.has(currentChannel.parent.id)) {
-        voiceTextManager.videoEventCategories.add(currentChannel.parent.id);
-      }
-      
       const videoVerifiedRole = guild.roles.cache.get(videoEvent.videoVerifiedRoleId);
       const waitingRoomId = videoEvent.waitingRoomId;
       const videoChannelId = videoEvent.videoChannelId;
+      const videoTextChannelId = videoEvent.videoTextChannelId;
 
       if (!videoVerifiedRole) {
         console.log(`[VideoEvent] ERROR: Video Verified role not found. Run /createvideoevent again.`);
@@ -99,6 +94,14 @@ module.exports = {
             }
           }
         }, videoEvent.timeoutDuration || 10000);
+      }
+
+      // When a new video event is created
+      if (voiceTextManager) {
+        voiceTextManager.videoEventCategories.add(currentChannel.parent?.id);
+        voiceTextManager.videoEventChannels.add(waitingRoomId);
+        voiceTextManager.videoEventChannels.add(videoChannelId);
+        voiceTextManager.videoEventChannels.add(videoTextChannelId);
       }
     }
     // ***************** Regular Voice Channel Logic *****************
