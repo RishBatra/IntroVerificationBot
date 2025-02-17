@@ -61,6 +61,7 @@ module.exports = {
         const threadsPerPage = 10;
         const pages = [];
         
+        // Create pages sequentially to handle async operations
         for (let i = 0; i < sortedThreads.length; i += threadsPerPage) {
             const pageThreads = sortedThreads.slice(i, i + threadsPerPage);
             const embed = new EmbedBuilder()
@@ -69,14 +70,45 @@ module.exports = {
                 .setDescription(`Page ${Math.floor(i / threadsPerPage) + 1}/${Math.ceil(sortedThreads.length / threadsPerPage)}`)
                 .setTimestamp();
 
-            pageThreads.forEach(thread => {
+            // Process each thread in the page
+            const threadPromises = pageThreads.map(async thread => {
                 const userName = thread.name.replace('Verification - ', '');
                 const status = thread.archived ? '🔒' : '🔓';
-                embed.addFields({
+
+                // Try to get the first message to find who started the verification
+                let verifierInfo = '';
+                try {
+                    const messages = await thread.messages.fetch({ limit: 10 });
+                    const sortedMessages = Array.from(messages.values()).sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+                    
+                    // Find the first non-system message that contains the verification questions
+                    const firstMessage = sortedMessages.find(msg => 
+                        msg.embeds.length > 0 && 
+                        msg.embeds[0].title === 'Verification Questions'
+                    );
+
+                    if (firstMessage) {
+                        const verifierMatch = firstMessage.embeds[0].description.match(/<@(\d+)>/);
+                        if (verifierMatch) {
+                            const verifierId = verifierMatch[1];
+                            const verifier = await interaction.guild.members.fetch(verifierId);
+                            verifierInfo = `\nVerifier: ${verifier.nickname || verifier.user.username}`;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error fetching thread messages:', error);
+                    verifierInfo = '\nVerifier: Unknown';
+                }
+
+                return {
                     name: `${status} ${userName}`,
-                    value: `[View Thread](https://discord.com/channels/${interaction.guildId}/${thread.id}) • <t:${Math.floor(thread.createdTimestamp / 1000)}:R>`
-                });
+                    value: `[View Thread](https://discord.com/channels/${interaction.guildId}/${thread.id}) • <t:${Math.floor(thread.createdTimestamp / 1000)}:R>${verifierInfo}`
+                };
             });
+
+            // Wait for all thread information to be processed
+            const fields = await Promise.all(threadPromises);
+            embed.addFields(fields);
 
             if (i === 0) { // Add stats to first page
                 embed.setFooter({ 
