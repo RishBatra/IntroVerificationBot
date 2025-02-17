@@ -9,35 +9,30 @@ class VoiceTextChannelManager {
       '693018400259047444',
       '693034620618539068',
     ];
+    this.videoEventCategories = new Set(['Video Events', '🎥 Video Event']);
+    console.log('[VoiceTextChannelManager] Initialized.');
 
     // Cleanup interval for stale channels (every 6 hours)
     setInterval(() => this.cleanupStaleChannels(), 6 * 60 * 60 * 1000);
-    console.log('[VoiceTextChannelManager] Initialized.');
   }
 
   async getOrCreateTextChannel(voiceChannel) {
+    if (!voiceChannel) return null;
+    
+    // Skip if channel is in a video event category
+    if (this.videoEventCategories.has(voiceChannel.parent?.name)) {
+      console.log(`[VoiceTextChannelManager] Skipping video event category channel ${voiceChannel.id}`);
+      return null;
+    }
+
+    // Skip if channel is excluded
+    if (this.excludedChannels.includes(voiceChannel.id)) {
+      console.log(`[VoiceTextChannelManager] Channel ${voiceChannel.id} is excluded`);
+      return null;
+    }
+
     console.log(`[VoiceTextChannelManager] getOrCreateTextChannel called for voice channel ID: ${voiceChannel.id}`);
     try {
-      // Check if channel is in video event category
-      const videoEventCategoryNames = ['Video Events', '🎥 Video Event'];
-      const isVideoEventCategory = videoEventCategoryNames.includes(voiceChannel.parent?.name);
-      
-      if (isVideoEventCategory) {
-        console.log(`[VoiceTextChannelManager] Skipping text channel creation for video event category channel ${voiceChannel.id}`);
-        return null;
-      }
-
-      if (this.excludedChannels.includes(voiceChannel.id)) {
-        console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is excluded.`);
-        return null;
-      }
-
-      // Check if this is a video event channel
-      if (this.videoEventChannels.has(voiceChannel.id)) {
-        console.log(`[VoiceTextChannelManager] Skipping text channel creation for video event channel ${voiceChannel.id}`);
-        return null;
-      }
-
       // Check cooldown to prevent spam
       const cooldown = this.channelCooldowns.get(voiceChannel.id);
       if (cooldown && Date.now() - cooldown < 10000) { // 10 seconds cooldown
