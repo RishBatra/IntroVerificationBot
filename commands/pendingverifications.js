@@ -7,10 +7,6 @@ module.exports = {
         .addBooleanOption(option =>
             option.setName('include_archived')
                 .setDescription('Include archived verification threads')
-                .setRequired(false))
-        .addUserOption(option =>
-            option.setName('user')
-                .setDescription('Check specific user\'s verification status')
                 .setRequired(false)),
     async execute(interaction) {
         await interaction.deferReply({ ephemeral: true });
@@ -65,7 +61,6 @@ module.exports = {
         const threadsPerPage = 10;
         const pages = [];
         
-        // Create pages sequentially to handle async operations
         for (let i = 0; i < sortedThreads.length; i += threadsPerPage) {
             const pageThreads = sortedThreads.slice(i, i + threadsPerPage);
             const embed = new EmbedBuilder()
@@ -185,79 +180,5 @@ module.exports = {
             buttons.components.forEach(button => button.setDisabled(true));
             interaction.editReply({ components: [buttons] }).catch(() => {});
         });
-
-        // Check if checking specific user
-        const targetUser = interaction.options.getUser('user');
-        if (targetUser) {
-            const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
-            const verifiedRole = interaction.guild.roles.cache.find(role => role.name === 'Verified');
-            const waitingRole = interaction.guild.roles.cache.find(role => role.name === 'Waiting for Verification');
-
-            const embed = new EmbedBuilder()
-                .setColor('#0099ff')
-                .setTitle('Verification Status Check')
-                .setDescription(`Status check for ${targetUser.tag}`)
-                .setTimestamp();
-
-            if (!member) {
-                embed.addFields({ name: 'Status', value: '❌ User not found in server' });
-                return interaction.editReply({ embeds: [embed], ephemeral: true });
-            }
-
-            if (member.roles.cache.has(verifiedRole.id)) {
-                embed.addFields({ name: 'Status', value: '✅ User is verified' });
-                return interaction.editReply({ embeds: [embed], ephemeral: true });
-            }
-
-            // Check for verification thread
-            const userThread = Array.from(allThreads.values()).find(thread => 
-                thread.name === `Verification - ${targetUser.tag}`
-            );
-
-            if (userThread) {
-                let verifierInfo = '';
-                try {
-                    const messages = await userThread.messages.fetch({ limit: 10 });
-                    const sortedMessages = Array.from(messages.values()).sort((a, b) => a.createdTimestamp - b.createdTimestamp);
-                    const firstMessage = sortedMessages.find(msg => 
-                        msg.embeds.length > 0 && 
-                        msg.embeds[0].title === 'Verification Questions'
-                    );
-
-                    if (firstMessage) {
-                        const mentions = firstMessage.embeds[0].description.match(/<@\d+>/g);
-                        if (mentions && mentions.length >= 2) {
-                            const verifierId = mentions[1].match(/\d+/)[0];
-                            try {
-                                const verifier = await interaction.guild.members.fetch(verifierId);
-                                verifierInfo = `\nVerifier: ${verifier.nickname || verifier.user.username}`;
-                            } catch (error) {
-                                verifierInfo = '\nVerifier: Left Server';
-                            }
-                        }
-                    }
-                } catch (error) {
-                    verifierInfo = '\nVerifier: Unknown';
-                }
-
-                const status = userThread.archived ? '🔒 Archived verification thread' : '🔓 Active verification thread';
-                embed.addFields({ 
-                    name: 'Status', 
-                    value: `${status}\n[Go to thread](https://discord.com/channels/${interaction.guildId}/${userThread.id})${verifierInfo}`
-                });
-            } else if (member.roles.cache.has(waitingRole.id)) {
-                embed.addFields({ 
-                    name: 'Status', 
-                    value: '⏳ User has Waiting for Verification role but no verification thread found' 
-                });
-            } else {
-                embed.addFields({ 
-                    name: 'Status', 
-                    value: '❓ User has not started verification process' 
-                });
-            }
-
-            return interaction.editReply({ embeds: [embed], ephemeral: true });
-        }
     },
-}; 
+};
