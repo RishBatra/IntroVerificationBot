@@ -19,8 +19,10 @@ class VoiceTextChannelManager {
     console.log(`[VoiceTextChannelManager] getOrCreateTextChannel called for voice channel ID: ${voiceChannel.id}`);
     try {
       // Check if channel is in video event category
-      if (voiceChannel.parent?.name === 'Video Events' || 
-          voiceChannel.parent?.name === '🎥 Video Event') {
+      const videoEventCategoryNames = ['Video Events', '🎥 Video Event'];
+      const isVideoEventCategory = videoEventCategoryNames.includes(voiceChannel.parent?.name);
+      
+      if (isVideoEventCategory) {
         console.log(`[VoiceTextChannelManager] Skipping text channel creation for video event category channel ${voiceChannel.id}`);
         return null;
       }
