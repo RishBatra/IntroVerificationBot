@@ -10,21 +10,15 @@ module.exports = {
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
 
-    const guild = interaction.guild;
-    const event = await VideoEvent.findOne({ guildId: guild.id });
-
-    if (!event) {
-      return interaction.editReply('❌ No active video event found.');
-    }
-
     try {
-      // Fetch channels from guild cache
-      const category = guild.channels.cache.get(event.categoryId);
-      const waitingRoom = guild.channels.cache.get(event.waitingRoomId);
-      const videoChannel = guild.channels.cache.get(event.videoChannelId);
-      const videoTextChannel = guild.channels.cache.get(event.videoTextChannelId);
+      const guild = interaction.guild;
+      const event = await VideoEvent.findOne({ guildId: guild.id });
 
-      // Fetch and delete role
+      if (!event) {
+        return interaction.editReply('❌ No active video event found.');
+      }
+
+      // Delete role if it exists
       const videoVerifiedRole = guild.roles.cache.get(event.videoVerifiedRoleId);
       if (videoVerifiedRole) {
         await videoVerifiedRole.delete('Cleaning up Video Verified role');
@@ -32,31 +26,41 @@ module.exports = {
       }
 
       // Delete channels if they exist
-      if (waitingRoom) await waitingRoom.delete('Cleaning up video event');
-      if (videoChannel) await videoChannel.delete('Cleaning up video event');
-      if (videoTextChannel) await videoTextChannel.delete('Cleaning up video event');
-      if (category) await category.delete('Cleaning up video event');
+      const channels = [
+        event.waitingRoomId,
+        event.videoChannelId,
+        event.videoTextChannelId
+      ].filter(Boolean); // Remove any undefined/null values
 
-      // Remove all whitelist entries for this guild
+      for (const channelId of channels) {
+        const channel = guild.channels.cache.get(channelId);
+        if (channel) {
+          await channel.delete('Cleaning up video event');
+          console.log(`[DEBUG] Deleted channel: ${channel.name}`);
+        }
+      }
+
+      // Delete category if it exists and is empty
+      if (event.categoryId) {
+        const category = guild.channels.cache.get(event.categoryId);
+        if (category && category.children.cache.size === 0) {
+          await category.delete('Cleaning up empty video event category');
+          console.log(`[DEBUG] Deleted empty category: ${category.name}`);
+        }
+      }
+
+      // Clear whitelist
       await Whitelist.deleteMany({ guildId: guild.id });
       console.log(`[DEBUG] Cleared whitelist for guild: ${guild.id}`);
 
-      // Remove event from database
+      // Delete event configuration
       await VideoEvent.deleteOne({ guildId: guild.id });
-
-      // Update VoiceTextManager if it exists
-      const voiceTextManager = interaction.client.voiceTextManager;
-      if (voiceTextManager) {
-        // Remove category from excluded categories if needed
-        if (category && category.name) {
-          voiceTextManager.videoEventCategories.delete(category.name);
-        }
-      }
+      console.log(`[DEBUG] Deleted video event configuration for guild: ${guild.id}`);
 
       return interaction.editReply('✅ Video event and all related channels, roles, and whitelist data have been removed.');
     } catch (error) {
       console.error('Error cleaning up video event:', error);
-      return interaction.editReply('❌ Failed to remove video event.');
+      return interaction.editReply('❌ An error occurred while cleaning up the video event.');
     }
   },
 };
