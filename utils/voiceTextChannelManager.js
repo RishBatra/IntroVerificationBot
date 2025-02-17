@@ -74,45 +74,46 @@ class VoiceTextChannelManager {
 
   async updateTextChannelVisibility(voiceChannel, member, joined) {
     console.log(`[VoiceTextChannelManager] updateTextChannelVisibility called`);
-    console.log(`[VoiceTextChannelManager] updateTextChannelVisibility called for voice channel ${voiceChannel.id} and member ${member.id}. Joined: ${joined}`);
-    try {
-      if (this.excludedChannels.includes(voiceChannel.id)) {
-        console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is excluded from text channel updates.`);
-        return;
-      }
+    console.log(`[VoiceTextChannelManager] Channel: ${voiceChannel?.name}, Member: ${member?.user?.tag}, Joined: ${joined}`);
 
+    if (!voiceChannel || !member) {
+      console.log('[VoiceTextChannelManager] Missing voiceChannel or member');
+      return;
+    }
+
+    try {
+      console.log('[VoiceTextChannelManager] Getting or creating text channel...');
       const textChannel = await this.getOrCreateTextChannel(voiceChannel);
+      
       if (!textChannel) {
-        console.log(`[VoiceTextChannelManager] No text channel found or created for voice channel ${voiceChannel.id}.`);
+        console.log('[VoiceTextChannelManager] No text channel created/found');
         return;
       }
 
       if (joined) {
-        // Grant permission so the member can see and use the text channel.
+        console.log(`[VoiceTextChannelManager] Granting access to ${member.user.tag}`);
         await textChannel.permissionOverwrites.edit(member, {
           ViewChannel: true,
           SendMessages: true,
-        }).catch(console.error);
-        console.log(`[VoiceTextChannelManager] Granted permissions for member ${member.id} in text channel ${textChannel.id}.`);
+        });
 
-        // Send a welcome message
         await textChannel.send({
           content: `Welcome ${member}! This channel is linked to ${voiceChannel.name}.`,
           allowedMentions: { users: [member.id] },
-        }).catch((err) => console.error(`[VoiceTextChannelManager] Failed to send welcome message: ${err}`));
+        });
       } else {
-        // When the member leaves, explicitly deny their permission to view the text channel.
-        await textChannel.permissionOverwrites.edit(member, { ViewChannel: false }).catch(console.error);
-        console.log(`[VoiceTextChannelManager] Set deny for member ${member.id} in text channel ${textChannel.id}.`);
+        console.log(`[VoiceTextChannelManager] Removing access from ${member.user.tag}`);
+        await textChannel.permissionOverwrites.edit(member, {
+          ViewChannel: false,
+        });
       }
 
-      // If the voice channel is empty, purge all messages in the text channel.
       if (voiceChannel.members.size === 0) {
-        console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is empty. Purging messages from text channel ${textChannel.id}.`);
+        console.log('[VoiceTextChannelManager] Channel empty, purging messages');
         await this.purgeChannelMessages(textChannel);
       }
     } catch (error) {
-      console.error(`[VoiceTextChannelManager] Error in updateTextChannelVisibility: ${error.message}`);
+      console.error('[VoiceTextChannelManager] Error in updateTextChannelVisibility:', error);
     }
   }
 
