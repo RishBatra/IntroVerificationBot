@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -57,52 +57,91 @@ module.exports = {
         const sortedThreads = Array.from(allThreads.values())
             .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
 
-        // Create embeds with 25 fields each
-        const embeds = [];
-        let currentEmbed = new EmbedBuilder()
-            .setColor('#0099ff')
-            .setTitle(includeArchived ? 'All Verification Threads' : 'Active Verification Threads')
-            .setDescription('Here are the verification threads:')
-            .setTimestamp();
-
-        let fieldCount = 0;
+        // Split threads into chunks of 10 for each page
+        const threadsPerPage = 10;
+        const pages = [];
         
-        sortedThreads.forEach((thread, index) => {
-            const userName = thread.name.replace('Verification - ', '');
-            const status = thread.archived ? '🔒 Archived' : '🔓 Active';
-            
-            // If we've reached 25 fields, create a new embed
-            if (fieldCount === 25) {
-                embeds.push(currentEmbed);
-                currentEmbed = new EmbedBuilder()
-                    .setColor('#0099ff')
-                    .setTitle(`${includeArchived ? 'All' : 'Active'} Verification Threads (Continued)`)
-                    .setTimestamp();
-                fieldCount = 0;
+        for (let i = 0; i < sortedThreads.length; i += threadsPerPage) {
+            const pageThreads = sortedThreads.slice(i, i + threadsPerPage);
+            const embed = new EmbedBuilder()
+                .setColor('#0099ff')
+                .setTitle(includeArchived ? 'All Verification Threads' : 'Active Verification Threads')
+                .setDescription(`Page ${Math.floor(i / threadsPerPage) + 1}/${Math.ceil(sortedThreads.length / threadsPerPage)}`)
+                .setTimestamp();
+
+            pageThreads.forEach(thread => {
+                const userName = thread.name.replace('Verification - ', '');
+                const status = thread.archived ? '🔒' : '🔓';
+                embed.addFields({
+                    name: `${status} ${userName}`,
+                    value: `[View Thread](https://discord.com/channels/${interaction.guildId}/${thread.id}) • <t:${Math.floor(thread.createdTimestamp / 1000)}:R>`
+                });
+            });
+
+            if (i === 0) { // Add stats to first page
+                embed.setFooter({ 
+                    text: `Total: ${allThreads.size} | Active: ${activeThreads.threads.size} | Archived: ${allThreads.size - activeThreads.threads.size}` 
+                });
             }
 
-            currentEmbed.addFields({
-                name: `${status} | ${userName}`,
-                value: `[Go to thread](https://discord.com/channels/${interaction.guildId}/${thread.id})\nCreated: <t:${Math.floor(thread.createdTimestamp / 1000)}:R>`
-            });
-            fieldCount++;
-        });
-
-        // Add the last embed if it has any fields
-        if (fieldCount > 0) {
-            embeds.push(currentEmbed);
+            pages.push(embed);
         }
 
-        // Add footer to the last embed
-        embeds[embeds.length - 1].setFooter({ 
-            text: `Total threads: ${allThreads.size} | Active: ${activeThreads.threads.size} | Archived: ${allThreads.size - activeThreads.threads.size}` 
+        let currentPage = 0;
+
+        // Create navigation buttons
+        const buttons = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('prev')
+                    .setLabel('Previous')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(true),
+                new ButtonBuilder()
+                    .setCustomId('next')
+                    .setLabel('Next')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(pages.length <= 1)
+            );
+
+        const response = await interaction.editReply({
+            embeds: [pages[0]],
+            components: pages.length > 1 ? [buttons] : [],
+            ephemeral: true
         });
 
-        // Add page numbers to embeds
-        embeds.forEach((embed, index) => {
-            embed.setDescription(`Here are the verification threads (Page ${index + 1}/${embeds.length}):`);
+        if (pages.length <= 1) return;
+
+        // Create button collector
+        const collector = response.createMessageComponentCollector({ 
+            time: 300000 // 5 minutes
         });
 
-        await interaction.editReply({ embeds: embeds, ephemeral: true });
+        collector.on('collect', async i => {
+            if (i.user.id !== interaction.user.id) {
+                await i.reply({ content: 'You cannot use these buttons.', ephemeral: true });
+                return;
+            }
+
+            if (i.customId === 'prev') {
+                currentPage--;
+            } else if (i.customId === 'next') {
+                currentPage++;
+            }
+
+            // Update button states
+            buttons.components[0].setDisabled(currentPage === 0);
+            buttons.components[1].setDisabled(currentPage === pages.length - 1);
+
+            await i.update({
+                embeds: [pages[currentPage]],
+                components: [buttons]
+            });
+        });
+
+        collector.on('end', () => {
+            buttons.components.forEach(button => button.setDisabled(true));
+            interaction.editReply({ components: [buttons] }).catch(() => {});
+        });
     },
 }; 
