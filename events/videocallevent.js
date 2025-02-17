@@ -27,6 +27,12 @@ module.exports = {
     // ***************** Video Event Logic *****************
     if (videoEvent && isVideoEventCategory) {
       console.log(`[VideoEvent] Video event configured and channel is in Video Events category.`);
+      
+      // Add the category to voiceTextManager's excluded categories if not already there
+      if (voiceTextManager && !voiceTextManager.videoEventCategories.has(currentChannel.parent.id)) {
+        voiceTextManager.videoEventCategories.add(currentChannel.parent.id);
+      }
+      
       const videoVerifiedRole = guild.roles.cache.get(videoEvent.videoVerifiedRoleId);
       const waitingRoomId = videoEvent.waitingRoomId;
       const videoChannelId = videoEvent.videoChannelId;

@@ -10,14 +10,40 @@ class VoiceTextChannelManager {
       '693034620618539068',
     ];
 
+    // Add property to track video event categories
+    this.videoEventCategories = new Set();
+    
+    // Load existing video event categories
+    this.loadVideoEventCategories();
+
     // Cleanup interval for stale channels (every 6 hours)
     setInterval(() => this.cleanupStaleChannels(), 6 * 60 * 60 * 1000);
     console.log('[VoiceTextChannelManager] Initialized.');
   }
 
+  // Add new method to load video event categories
+  async loadVideoEventCategories() {
+    try {
+      const VideoEvent = require('../models/videocallevent');
+      const events = await VideoEvent.find({});
+      events.forEach(event => {
+        this.videoEventCategories.add(event.categoryId);
+      });
+      console.log(`[VoiceTextChannelManager] Loaded ${this.videoEventCategories.size} video event categories`);
+    } catch (error) {
+      console.error('[VoiceTextChannelManager] Error loading video event categories:', error);
+    }
+  }
+
   async getOrCreateTextChannel(voiceChannel) {
     console.log(`[VoiceTextChannelManager] getOrCreateTextChannel called for voice channel ID: ${voiceChannel.id}`);
     try {
+      // Check if channel is in a video event category
+      if (this.videoEventCategories.has(voiceChannel.parent?.id)) {
+        console.log(`[VoiceTextChannelManager] Skipping text channel creation for video event channel ${voiceChannel.id}`);
+        return null;
+      }
+
       if (this.excludedChannels.includes(voiceChannel.id)) {
         console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is excluded.`);
         return null;
