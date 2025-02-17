@@ -35,7 +35,7 @@ const client = new Client({
 });
 
 // Attach the VoiceTextChannelManager to the client
-const VoiceTextChannelManager = require('./utils/voiceTextChannelManager'); // Adjust the path accordingly
+const VoiceTextChannelManager = require('./utils/voiceTextChannelManager');
 client.voiceTextManager = new VoiceTextChannelManager(client);
 
 // Run the deploy-commands.js script
