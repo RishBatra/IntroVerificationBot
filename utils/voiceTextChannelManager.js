@@ -11,65 +11,70 @@ class VoiceTextChannelManager {
     ];
     this.videoEventCategories = new Set(['Video Events', '🎥 Video Event']);
     console.log('[VoiceTextChannelManager] Initialized.');
-
-    // Cleanup interval for stale channels (every 6 hours)
-    setInterval(() => this.cleanupStaleChannels(), 6 * 60 * 60 * 1000);
   }
 
   async getOrCreateTextChannel(voiceChannel) {
-    if (!voiceChannel) return null;
-    
-    // Skip if channel is in a video event category
-    if (this.videoEventCategories.has(voiceChannel.parent?.name)) {
-      console.log(`[VoiceTextChannelManager] Skipping video event category channel ${voiceChannel.id}`);
+    if (!voiceChannel) {
+      console.log('[VoiceTextChannelManager] No voice channel provided');
       return null;
     }
 
-    // Skip if channel is excluded
-    if (this.excludedChannels.includes(voiceChannel.id)) {
-      console.log(`[VoiceTextChannelManager] Channel ${voiceChannel.id} is excluded`);
-      return null;
-    }
+    console.log(`[VoiceTextChannelManager] Processing channel: ${voiceChannel.name} (${voiceChannel.id})`);
+    console.log(`[VoiceTextChannelManager] Category: ${voiceChannel.parent?.name || 'No category'}`);
 
-    console.log(`[VoiceTextChannelManager] getOrCreateTextChannel called for voice channel ID: ${voiceChannel.id}`);
     try {
-      // Check cooldown to prevent spam
+      // Skip if channel is in a video event category
+      if (voiceChannel.parent && this.videoEventCategories.has(voiceChannel.parent.name)) {
+        console.log(`[VoiceTextChannelManager] Skipping video event category channel ${voiceChannel.id}`);
+        return null;
+      }
+
+      // Skip if channel is excluded
+      if (this.excludedChannels.includes(voiceChannel.id)) {
+        console.log(`[VoiceTextChannelManager] Channel ${voiceChannel.id} is excluded`);
+        return null;
+      }
+
+      // Check cooldown
       const cooldown = this.channelCooldowns.get(voiceChannel.id);
-      if (cooldown && Date.now() - cooldown < 10000) { // 10 seconds cooldown
-        console.log(`[VoiceTextChannelManager] Cooldown active for voice channel ${voiceChannel.id}.`);
+      if (cooldown && Date.now() - cooldown < 10000) {
+        console.log(`[VoiceTextChannelManager] Cooldown active for channel ${voiceChannel.id}`);
         return this.voiceTextChannels.get(voiceChannel.id);
       }
 
       // Update cooldown
       this.channelCooldowns.set(voiceChannel.id, Date.now());
 
-      // Check cache first
+      // Check existing channel in cache
       let textChannel = this.voiceTextChannels.get(voiceChannel.id);
       if (textChannel) {
         try {
           await textChannel.fetch();
-          console.log(`[VoiceTextChannelManager] Found cached text channel for voice channel ${voiceChannel.id}.`);
+          console.log(`[VoiceTextChannelManager] Found existing text channel ${textChannel.id}`);
           return textChannel;
-        } catch {
-          console.log(`[VoiceTextChannelManager] Cached text channel for ${voiceChannel.id} is invalid, deleting from cache.`);
+        } catch (error) {
+          console.log(`[VoiceTextChannelManager] Cached channel invalid, removing from cache`);
           this.voiceTextChannels.delete(voiceChannel.id);
         }
       }
 
-      // Look for an existing text channel in the same category (if available)
-      textChannel = voiceChannel.parent?.children.cache.find(
-        channel =>
-          channel.type === ChannelType.GuildText &&
-          channel.name === `${voiceChannel.name}-text`
-      );
-
-      if (textChannel) {
-        console.log(`[VoiceTextChannelManager] Found existing text channel ${textChannel.id} for voice channel ${voiceChannel.id}.`);
-        this.voiceTextChannels.set(voiceChannel.id, textChannel);
-        return textChannel;
+      // Look for existing text channel in category
+      if (voiceChannel.parent) {
+        textChannel = voiceChannel.parent.children.cache.find(
+          channel => 
+            channel.type === ChannelType.GuildText && 
+            channel.name === `${voiceChannel.name}-text`
+        );
+        
+        if (textChannel) {
+          console.log(`[VoiceTextChannelManager] Found existing category text channel ${textChannel.id}`);
+          this.voiceTextChannels.set(voiceChannel.id, textChannel);
+          return textChannel;
+        }
       }
 
-      // Prepare channel creation data
+      // Create new text channel
+      console.log(`[VoiceTextChannelManager] Creating new text channel for ${voiceChannel.name}`);
       const channelData = {
         name: `${voiceChannel.name}-text`,
         type: ChannelType.GuildText,
@@ -87,7 +92,6 @@ class VoiceTextChannelManager {
             ],
           },
         ],
-        reason: `Voice text channel for ${voiceChannel.name}`,
       };
 
       // Set parent if the voice channel has one
@@ -95,106 +99,80 @@ class VoiceTextChannelManager {
         channelData.parent = voiceChannel.parent;
       }
 
-      console.log(`[VoiceTextChannelManager] Creating new text channel for voice channel ${voiceChannel.id}.`);
       textChannel = await voiceChannel.guild.channels.create(channelData);
       this.voiceTextChannels.set(voiceChannel.id, textChannel);
-      console.log(`[VoiceTextChannelManager] Created text channel ${textChannel.id} for voice channel ${voiceChannel.id}.`);
+      console.log(`[VoiceTextChannelManager] Created new text channel ${textChannel.id}`);
       return textChannel;
     } catch (error) {
-      console.error(`[VoiceTextChannelManager] Error in getOrCreateTextChannel: ${error.message}`);
+      console.error(`[VoiceTextChannelManager] Error: ${error.message}`);
       return null;
     }
   }
 
   async updateTextChannelVisibility(voiceChannel, member, joined) {
-    console.log(`[VoiceTextChannelManager] updateTextChannelVisibility called for voice channel ${voiceChannel.id} and member ${member.id}. Joined: ${joined}`);
-    try {
-      if (this.excludedChannels.includes(voiceChannel.id)) {
-        console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is excluded from text channel updates.`);
-        return;
-      }
+    if (!voiceChannel || !member) return;
 
+    console.log(`[VoiceTextChannelManager] Updating visibility for ${member.user.tag} in ${voiceChannel.name}`);
+
+    try {
       const textChannel = await this.getOrCreateTextChannel(voiceChannel);
-      if (!textChannel) {
-        console.log(`[VoiceTextChannelManager] No text channel found or created for voice channel ${voiceChannel.id}.`);
-        return;
-      }
+      if (!textChannel) return;
 
       if (joined) {
-        // Grant permission so the member can see and use the text channel.
         await textChannel.permissionOverwrites.edit(member, {
           ViewChannel: true,
           SendMessages: true,
-        }).catch(console.error);
-        console.log(`[VoiceTextChannelManager] Granted permissions for member ${member.id} in text channel ${textChannel.id}.`);
+        });
+        console.log(`[VoiceTextChannelManager] Granted access to ${member.user.tag}`);
 
-        // Send a welcome message
         await textChannel.send({
           content: `Welcome ${member}! This channel is linked to ${voiceChannel.name}.`,
           allowedMentions: { users: [member.id] },
-        }).catch((err) => console.error(`[VoiceTextChannelManager] Failed to send welcome message: ${err}`));
+        }).catch(console.error);
       } else {
-        // When the member leaves, explicitly deny their permission to view the text channel.
-        await textChannel.permissionOverwrites.edit(member, { ViewChannel: false }).catch(console.error);
-        console.log(`[VoiceTextChannelManager] Set deny for member ${member.id} in text channel ${textChannel.id}.`);
+        await textChannel.permissionOverwrites.edit(member, {
+          ViewChannel: false,
+        });
+        console.log(`[VoiceTextChannelManager] Removed access from ${member.user.tag}`);
       }
 
-      // If the voice channel is empty, purge all messages in the text channel.
+      // If voice channel is empty, purge messages
       if (voiceChannel.members.size === 0) {
-        console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is empty. Purging messages from text channel ${textChannel.id}.`);
         await this.purgeChannelMessages(textChannel);
       }
     } catch (error) {
-      console.error(`[VoiceTextChannelManager] Error in updateTextChannelVisibility: ${error.message}`);
+      console.error(`[VoiceTextChannelManager] Error updating visibility: ${error.message}`);
     }
   }
 
-  // Purge messages in the text channel (without hiding the channel)
   async purgeChannelMessages(textChannel) {
-    console.log(`[VoiceTextChannelManager] purgeChannelMessages called for ${textChannel.id}.`);
+    if (!textChannel) return;
+    
     try {
-      const batchSize = 100;
-      let totalDeleted = 0;
-
-      while (true) {
-        const messages = await textChannel.messages.fetch({ limit: batchSize });
-        if (messages.size === 0) break;
-
-        // Bulk delete messages younger than 14 days, and delete older ones individually.
-        const recentMessages = messages.filter(msg => Date.now() - msg.createdTimestamp < 14 * 24 * 60 * 60 * 1000);
-        const oldMessages = messages.filter(msg => Date.now() - msg.createdTimestamp >= 14 * 24 * 60 * 60 * 1000);
-
-        if (recentMessages.size > 0) {
-          await textChannel.bulkDelete(recentMessages, true).catch(console.error);
-          totalDeleted += recentMessages.size;
-        }
-
-        for (const [, message] of oldMessages) {
-          await message.delete().catch(() => {});
-          totalDeleted++;
-        }
-
-        if (messages.size < batchSize) break;
+      const messages = await textChannel.messages.fetch();
+      if (messages.size > 0) {
+        await textChannel.bulkDelete(messages, true).catch(() => {
+          // If bulk delete fails, delete messages one by one
+          messages.forEach(msg => msg.delete().catch(() => {}));
+        });
       }
-      console.log(`[VoiceTextChannelManager] Purged ${totalDeleted} messages from ${textChannel.name} (${textChannel.id}).`);
     } catch (error) {
-      console.error(`[VoiceTextChannelManager] Error purging messages in ${textChannel.id}: ${error.message}`);
+      console.error(`[VoiceTextChannelManager] Error purging messages: ${error.message}`);
     }
   }
 
   async cleanupStaleChannels() {
-    console.log(`[VoiceTextChannelManager] Running cleanup of stale channels.`);
-    try {
-      for (const [voiceId, textChannel] of this.voiceTextChannels) {
-        const voiceChannel = this.client.channels.cache.get(voiceId);
+    console.log('[VoiceTextChannelManager] Cleaning up stale channels');
+    for (const [voiceId, textChannel] of this.voiceTextChannels) {
+      try {
+        const voiceChannel = await this.client.channels.fetch(voiceId).catch(() => null);
         if (!voiceChannel || voiceChannel.members.size === 0) {
-          console.log(`[VoiceTextChannelManager] Cleaning up text channel ${textChannel.id} for stale voice channel ${voiceId}. Purging messages.`);
           await this.purgeChannelMessages(textChannel);
           this.voiceTextChannels.delete(voiceId);
         }
+      } catch (error) {
+        console.error(`[VoiceTextChannelManager] Error cleaning up channel: ${error.message}`);
       }
-    } catch (error) {
-      console.error(`[VoiceTextChannelManager] Error in cleanupStaleChannels: ${error.message}`);
     }
   }
 }

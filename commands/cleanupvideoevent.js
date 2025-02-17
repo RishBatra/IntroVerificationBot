@@ -22,7 +22,7 @@ module.exports = {
       const category = guild.channels.cache.get(event.categoryId);
       const waitingRoom = guild.channels.cache.get(event.waitingRoomId);
       const videoChannel = guild.channels.cache.get(event.videoChannelId);
-      const videoTextChannel = guild.channels.cache.get(event.videoTextChannelId); // Fetch linked text channel
+      const videoTextChannel = guild.channels.cache.get(event.videoTextChannelId);
 
       // Fetch and delete role
       const videoVerifiedRole = guild.roles.cache.get(event.videoVerifiedRoleId);
@@ -34,7 +34,7 @@ module.exports = {
       // Delete channels if they exist
       if (waitingRoom) await waitingRoom.delete('Cleaning up video event');
       if (videoChannel) await videoChannel.delete('Cleaning up video event');
-      if (videoTextChannel) await videoTextChannel.delete('Cleaning up video event'); // Delete text channel
+      if (videoTextChannel) await videoTextChannel.delete('Cleaning up video event');
       if (category) await category.delete('Cleaning up video event');
 
       // Remove all whitelist entries for this guild
@@ -44,12 +44,13 @@ module.exports = {
       // Remove event from database
       await VideoEvent.deleteOne({ guildId: guild.id });
 
-      // When cleaning up
-      if (interaction.client.voiceTextManager) {
-        interaction.client.voiceTextManager.videoEventCategories.delete(category.id);
-        interaction.client.voiceTextManager.videoEventChannels.delete(event.waitingRoomId);
-        interaction.client.voiceTextManager.videoEventChannels.delete(event.videoChannelId);
-        interaction.client.voiceTextManager.videoEventChannels.delete(event.videoTextChannelId);
+      // Update VoiceTextManager if it exists
+      const voiceTextManager = interaction.client.voiceTextManager;
+      if (voiceTextManager) {
+        // Remove category from excluded categories if needed
+        if (category && category.name) {
+          voiceTextManager.videoEventCategories.delete(category.name);
+        }
       }
 
       return interaction.editReply('✅ Video event and all related channels, roles, and whitelist data have been removed.');
