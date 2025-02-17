@@ -13,34 +13,45 @@ module.exports = {
     const videoEvent = await VideoEvent.findOne({ guildId: guild.id });
     const voiceTextManager = newState.client.voiceTextManager;
 
-    // Use newState.channel if available; otherwise, fallback to oldState.channel.
+    // Get current channel (prefer newState's channel)
     const currentChannel = newState.channel || oldState.channel;
     if (!currentChannel) {
       console.log(`[VideoEvent] No channel available in voice state update.`);
       return;
     }
     
-    // Determine if the current voice channel belongs to the "Video Events" category.
-    const isVideoEventCategory = currentChannel.parent?.name === 'Video Events';
-    console.log(`[VideoEvent] Current channel parent: ${currentChannel.parent?.name}. isVideoEventCategory: ${isVideoEventCategory}`);
-    
+    // Only process if this is a video event channel
+    const isVideoChannel = [
+      videoEvent.waitingRoomId,
+      videoEvent.videoChannelId
+    ].includes(currentChannel.id);
+
+    if (!isVideoChannel) return;
+
+    console.log(`[VideoEvent] Processing video channel ${currentChannel.name}`);
+
+    const videoVerifiedRole = guild.roles.cache.get(videoEvent.videoVerifiedRoleId);
+    if (!videoVerifiedRole) {
+      console.log(`[VideoEvent] ERROR: Video Verified role not found`);
+      return;
+    }
+
+    // Check whitelist
+    const isWhitelisted = await Whitelist.findOne({ 
+      guildId: guild.id, 
+      userId: newState.member.id 
+    });
+
+    if (isWhitelisted) {
+      console.log(`[VideoEvent] Member ${newState.member.id} is whitelisted`);
+      return;
+    }
+
     // ***************** Video Event Logic *****************
-    if (videoEvent && isVideoEventCategory) {
+    if (videoEvent && isVideoChannel) {
       console.log(`[VideoEvent] Video event configured and channel is in Video Events category.`);
-      const videoVerifiedRole = guild.roles.cache.get(videoEvent.videoVerifiedRoleId);
       const waitingRoomId = videoEvent.waitingRoomId;
       const videoChannelId = videoEvent.videoChannelId;
-
-      if (!videoVerifiedRole) {
-        console.log(`[VideoEvent] ERROR: Video Verified role not found. Run /createvideoevent again.`);
-        return;
-      }
-
-      const isWhitelisted = await Whitelist.findOne({ guildId: guild.id, userId: newState.member.id });
-      if (isWhitelisted) {
-        console.log(`[VideoEvent] Member ${newState.member.id} is whitelisted. Skipping video event logic.`);
-        return;
-      }
 
       const updateRole = async (member, add) => {
         try {
@@ -61,7 +72,7 @@ module.exports = {
       };
 
       // When a member joins the waiting room channel.
-      if (newState.channelId === waitingRoomId) {
+      if (currentChannel.id === waitingRoomId) {
         console.log(`[VideoEvent] Member ${newState.member.id} joined Waiting Room (${waitingRoomId}).`);
         if (newState.selfVideo) {
           await updateRole(newState.member, true);
@@ -71,7 +82,7 @@ module.exports = {
       }
 
       // When a member joins the video channel, set a timeout for further actions.
-      if (newState.channelId === videoChannelId) {
+      if (currentChannel.id === videoChannelId) {
         console.log(`[VideoEvent] Member ${newState.member.id} joined Video Channel (${videoChannelId}).`);
         setTimeout(async () => {
           const updatedState = guild.members.cache.get(newState.member.id)?.voice;
@@ -85,7 +96,7 @@ module.exports = {
           
           // Purge messages if the linked text channel is no longer in use.
           if (voiceTextManager) {
-            voiceTextManager.channelCooldowns.delete(newState.channelId);
+            voiceTextManager.channelCooldowns.delete(currentChannel.id);
             const textChannel = await voiceTextManager.getOrCreateTextChannel(currentChannel);
             if (textChannel && currentChannel.members.size === 0) {
               console.log(`[VideoEvent] Purging messages for text channel ${textChannel.id}.`);
@@ -96,7 +107,7 @@ module.exports = {
       }
     }
     // ***************** Regular Voice Channel Logic *****************
-    else if (voiceTextManager && !isVideoEventCategory) {
+    else if (voiceTextManager && !isVideoChannel) {
       // If the member left voice completely (newState.channel is null):
       if (!newState.channel) {
         console.log(`[VideoEvent] Member ${newState.member.id} left all voice channels.`);
