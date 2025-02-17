@@ -53,30 +53,56 @@ module.exports = {
             });
         }
 
-        const embed = new EmbedBuilder()
+        // Sort threads by creation date (newest first)
+        const sortedThreads = Array.from(allThreads.values())
+            .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
+
+        // Create embeds with 25 fields each
+        const embeds = [];
+        let currentEmbed = new EmbedBuilder()
             .setColor('#0099ff')
             .setTitle(includeArchived ? 'All Verification Threads' : 'Active Verification Threads')
             .setDescription('Here are the verification threads:')
             .setTimestamp();
 
-        // Sort threads by creation date (newest first)
-        const sortedThreads = Array.from(allThreads.values())
-            .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
-
-        sortedThreads.forEach(thread => {
+        let fieldCount = 0;
+        
+        sortedThreads.forEach((thread, index) => {
             const userName = thread.name.replace('Verification - ', '');
             const status = thread.archived ? '🔒 Archived' : '🔓 Active';
-            embed.addFields({
+            
+            // If we've reached 25 fields, create a new embed
+            if (fieldCount === 25) {
+                embeds.push(currentEmbed);
+                currentEmbed = new EmbedBuilder()
+                    .setColor('#0099ff')
+                    .setTitle(`${includeArchived ? 'All' : 'Active'} Verification Threads (Continued)`)
+                    .setTimestamp();
+                fieldCount = 0;
+            }
+
+            currentEmbed.addFields({
                 name: `${status} | ${userName}`,
                 value: `[Go to thread](https://discord.com/channels/${interaction.guildId}/${thread.id})\nCreated: <t:${Math.floor(thread.createdTimestamp / 1000)}:R>`
             });
+            fieldCount++;
         });
 
-        // Add a footer with the total count
-        embed.setFooter({ 
+        // Add the last embed if it has any fields
+        if (fieldCount > 0) {
+            embeds.push(currentEmbed);
+        }
+
+        // Add footer to the last embed
+        embeds[embeds.length - 1].setFooter({ 
             text: `Total threads: ${allThreads.size} | Active: ${activeThreads.threads.size} | Archived: ${allThreads.size - activeThreads.threads.size}` 
         });
 
-        await interaction.editReply({ embeds: [embed], ephemeral: true });
+        // Add page numbers to embeds
+        embeds.forEach((embed, index) => {
+            embed.setDescription(`Here are the verification threads (Page ${index + 1}/${embeds.length}):`);
+        });
+
+        await interaction.editReply({ embeds: embeds, ephemeral: true });
     },
 }; 
