@@ -65,7 +65,10 @@ module.exports = {
                     .setColor('#FF0000')
                     .setTitle('⚠️ Role Selection Required')
                     .setDescription(`The following members need to select their roles within 24 hours or they will be marked as inactive:\n
-${membersWithOnlyVerifiedRole.map(member => `<@${member.user.id}>`).join('\n')}
+${membersWithOnlyVerifiedRole.map(member => {
+    const displayName = member.nickname || member.user.username;
+    return `${displayName} (<@${member.user.id}>)`;
+}).join('\n')}
 
 Please visit ${rolesChannel ? `<#${rolesChannel.id}>` : 'the roles channel'} to select your roles.`)
                     .setFooter({ text: 'This is an automated message' })
@@ -99,9 +102,10 @@ Please visit ${rolesChannel ? `<#${rolesChannel.id}>` : 'the roles channel'} to 
                 .setTimestamp();
 
             pageMembers.forEach((member, index) => {
+                const displayName = member.nickname || member.user.username;
                 embed.addFields({
                     name: `${start + index + 1}. ${member.user.tag}`,
-                    value: `<@${member.user.id}> • Joined <t:${Math.floor(member.joinedTimestamp / 1000)}:R>`
+                    value: `${displayName} (<@${member.user.id}>) • Joined <t:${Math.floor(member.joinedTimestamp / 1000)}:R>`
                 });
             });
 
