@@ -4,18 +4,26 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('checkverified')
-        .setDescription('List members with only the verified role'),
+        .setDescription('List members with only the verified role')
+        .addBooleanOption(option =>
+            option.setName('send_warning')
+                .setDescription('Send a warning message in general chat')
+                .setRequired(false)),
     
     async execute(interaction) {
         await interaction.deferReply({ ephemeral: true });
 
-        const VERIFIED_ROLE_NAME = 'Verified'; // Replace with the name of your verified role
-        const guild = interaction.guild;
+        // Check if executor has required roles
+        const executor = interaction.member;
+        const adminRole = 'Admins';
+        const proudGuardiansRole = 'Proud Guardians';
 
-        if (!guild) {
-            await interaction.editReply('This command can only be used in a server.');
-            return;
+        if (!executor.roles.cache.some(role => role.name === adminRole || role.name === proudGuardiansRole)) {
+            return interaction.editReply({ content: 'You do not have permission to use this command.', ephemeral: true });
         }
+
+        const VERIFIED_ROLE_NAME = 'Verified';
+        const guild = interaction.guild;
 
         const verifiedRole = guild.roles.cache.find(role => role.name === VERIFIED_ROLE_NAME);
         if (!verifiedRole) {
@@ -44,6 +52,33 @@ module.exports = {
             return;
         }
 
+        // Sort members by join date
+        membersWithOnlyVerifiedRole.sort((a, b) => a.joinedTimestamp - b.joinedTimestamp);
+
+        // Send warning message if requested
+        const sendWarning = interaction.options.getBoolean('send_warning') ?? false;
+        if (sendWarning) {
+            const generalChannel = interaction.guild.channels.cache.find(channel => channel.name === 'general-chat');
+            if (generalChannel) {
+                const rolesChannel = interaction.guild.channels.cache.find(channel => channel.name === 'roles');
+                const warningEmbed = new EmbedBuilder()
+                    .setColor('#FF0000')
+                    .setTitle('⚠️ Role Selection Required')
+                    .setDescription(`The following members need to select their roles within 24 hours or they will be marked as inactive:\n
+${membersWithOnlyVerifiedRole.map(member => `<@${member.user.id}>`).join('\n')}
+
+Please visit ${rolesChannel ? `<#${rolesChannel.id}>` : 'the roles channel'} to select your roles.`)
+                    .setFooter({ text: 'This is an automated message' })
+                    .setTimestamp();
+
+                await generalChannel.send({ embeds: [warningEmbed] });
+                await interaction.editReply({ content: 'Warning message has been sent to general chat.', ephemeral: true });
+            } else {
+                await interaction.editReply({ content: 'Could not find general-chat channel to send warning.', ephemeral: true });
+                return;
+            }
+        }
+
         const PAGE_SIZE = 10;
         let currentPage = 0;
 
@@ -52,41 +87,49 @@ module.exports = {
             const end = start + PAGE_SIZE;
             const pageMembers = membersWithOnlyVerifiedRole.slice(start, end);
 
-            return new EmbedBuilder()
+            const embed = new EmbedBuilder()
                 .setTitle(`Members with only the "${VERIFIED_ROLE_NAME}" role`)
-                .setDescription(pageMembers.map(member => `${member.user.tag} (<@${member.user.id}>)`).join('\n'))
                 .setColor('#00FF00')
-                .setFooter({ text: `Page ${page + 1} of ${Math.ceil(membersWithOnlyVerifiedRole.length / PAGE_SIZE)}` });
-        };
+                .setDescription(sendWarning ? 
+                    'These members have been warned to pick additional roles.' : 
+                    'These members have not picked any additional roles yet.')
+                .setFooter({ 
+                    text: `Page ${page + 1} of ${Math.ceil(membersWithOnlyVerifiedRole.length / PAGE_SIZE)} | Total members: ${membersWithOnlyVerifiedRole.length}` 
+                })
+                .setTimestamp();
 
-        const generateButtons = (page) => {
-            const row = new ActionRowBuilder();
-            const totalPages = Math.ceil(membersWithOnlyVerifiedRole.length / PAGE_SIZE);
-
-            if (page > 0) {
-                row.addComponents(new ButtonBuilder().setCustomId('prev').setLabel('Previous').setStyle(ButtonStyle.Primary));
-            }
-
-            if (page < totalPages - 1) {
-                row.addComponents(new ButtonBuilder().setCustomId('next').setLabel('Next').setStyle(ButtonStyle.Primary));
-            }
-
-            return row.components.length > 0 ? [row] : [];
-        };
-
-        const updateMessage = async () => {
-            const embed = generateEmbed(currentPage);
-            const components = generateButtons(currentPage);
-
-            await interaction.editReply({
-                embeds: [embed],
-                components: components
+            pageMembers.forEach((member, index) => {
+                embed.addFields({
+                    name: `${start + index + 1}. ${member.user.tag}`,
+                    value: `<@${member.user.id}> • Joined <t:${Math.floor(member.joinedTimestamp / 1000)}:R>`
+                });
             });
+
+            return embed;
         };
 
-        await updateMessage();
+        const buttons = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('prev')
+                    .setLabel('Previous')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(true),
+                new ButtonBuilder()
+                    .setCustomId('next')
+                    .setLabel('Next')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(membersWithOnlyVerifiedRole.length <= PAGE_SIZE)
+            );
 
-        const collector = interaction.channel.createMessageComponentCollector({ 
+        const response = await interaction.editReply({
+            embeds: [generateEmbed(0)],
+            components: [buttons]
+        });
+
+        if (membersWithOnlyVerifiedRole.length <= PAGE_SIZE) return;
+
+        const collector = response.createMessageComponentCollector({ 
             filter: i => i.user.id === interaction.user.id,
             time: 60000 
         });
@@ -98,16 +141,19 @@ module.exports = {
                 currentPage++;
             }
 
-            await updateMessage();
-            await i.deferUpdate();
+            // Update button states
+            buttons.components[0].setDisabled(currentPage === 0);
+            buttons.components[1].setDisabled(currentPage >= Math.ceil(membersWithOnlyVerifiedRole.length / PAGE_SIZE) - 1);
+
+            await i.update({
+                embeds: [generateEmbed(currentPage)],
+                components: [buttons]
+            });
         });
 
         collector.on('end', async () => {
-            try {
-                await interaction.editReply({ components: [] });
-            } catch (error) {
-                console.error('Error removing buttons:', error);
-            }
+            buttons.components.forEach(button => button.setDisabled(true));
+            await interaction.editReply({ components: [buttons] }).catch(() => {});
         });
     },
 };
