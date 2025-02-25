@@ -31,7 +31,7 @@ module.exports = {
             // Send DM to user
             try {
                 await targetUser.send({
-                    content: 'You have been granted photo verification. You now have access to photo channels in the server.'
+                    content: `You have been granted photo verification. You now have access to selfies channel in the server.\nYou can check out <#770372403779207190> to post your first selfie! We're excited to see you join our channel! 📸`
                 });
             } catch (error) {
                 await interaction.reply({
