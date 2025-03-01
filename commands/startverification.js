@@ -62,7 +62,7 @@ module.exports = {
         try {
             const thread = await verificationHelpChannel.threads.create({
                 name: `Verification - ${targetUser.tag}`,
-                autoArchiveDuration: 60,
+                autoArchiveDuration: 10080,  // Set to 7 days instead of 60 minutes
                 reason: 'Verification process',
             });
 
@@ -95,7 +95,9 @@ module.exports = {
                 )
                 .setFooter({ text: 'Please refrain from answering in one word or small phrases.' });
 
-            await thread.send({ embeds: [verificationQuestions] });
+            // Send and pin the verification questions
+            const questionMessage = await thread.send({ embeds: [verificationQuestions] });
+            await questionMessage.pin();  // Pin the message so it stays at the top and is less likely to be deleted
 
             await interaction.editReply({ content: `Verification process started for <@${targetUser.id}>.`, ephemeral: true });
         } catch (error) {
