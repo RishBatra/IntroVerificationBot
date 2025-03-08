@@ -3,7 +3,7 @@ const { SlashCommandBuilder, Collection, EmbedBuilder} = require('discord.js');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('checkselfies')
-        .setDescription('Check if users with the Photo Verified role posted an image in the selfies channel in the last 30 days')
+        .setDescription('Check if Photo Verified users posted selfies in the last 30 days')
         .addBooleanOption(option => 
             option.setName('send_warning')
                 .setDescription('Send a warning message in the channel reminding users to post')
