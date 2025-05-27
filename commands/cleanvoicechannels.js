@@ -17,7 +17,7 @@ module.exports = {
 
             // Get all text channels that end with '-text'
             const textChannels = guild.channels.cache.filter(
-                channel => channel.type === 0 && channel.name.endsWith('-text')
+                channel => channel.type === 0 && channel.name && channel.name.endsWith('-text')
             );
 
             await interaction.editReply(`Found ${textChannels.size} voice-text channels. Starting cleanup...`);
