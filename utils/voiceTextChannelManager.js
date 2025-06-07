@@ -105,10 +105,22 @@ class VoiceTextChannelManager {
         console.log(`[VoiceTextChannelManager] Set deny for member ${member.id} in text channel ${textChannel.id}.`);
       }
 
-      // If the voice channel is empty, purge all messages in the text channel.
+      // If the voice channel is empty, delete the text channel after a short delay
       if (voiceChannel.members.size === 0) {
-        console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is empty. Purging messages from text channel ${textChannel.id}.`);
-        await this.purgeChannelMessages(textChannel);
+        console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is empty. Scheduling text channel deletion.`);
+        setTimeout(async () => {
+          // Double-check that the voice channel is still empty
+          const updatedVoiceChannel = this.client.channels.cache.get(voiceChannel.id);
+          if (!updatedVoiceChannel || updatedVoiceChannel.members.size === 0) {
+            console.log(`[VoiceTextChannelManager] Deleting empty text channel ${textChannel.id}.`);
+            try {
+              await textChannel.delete('Voice channel is empty');
+              this.voiceTextChannels.delete(voiceChannel.id);
+            } catch (error) {
+              console.error(`[VoiceTextChannelManager] Error deleting text channel ${textChannel.id}: ${error.message}`);
+            }
+          }
+        }, 5000); // 5 second delay to handle rapid join/leave events
       }
     } catch (error) {
       console.error(`[VoiceTextChannelManager] Error in updateTextChannelVisibility: ${error.message}`);
@@ -154,8 +166,13 @@ class VoiceTextChannelManager {
       for (const [voiceId, textChannel] of this.voiceTextChannels) {
         const voiceChannel = this.client.channels.cache.get(voiceId);
         if (!voiceChannel || voiceChannel.members.size === 0) {
-          console.log(`[VoiceTextChannelManager] Cleaning up text channel ${textChannel.id} for stale voice channel ${voiceId}. Purging messages.`);
-          await this.purgeChannelMessages(textChannel);
+          console.log(`[VoiceTextChannelManager] Cleaning up stale text channel ${textChannel.id} for voice channel ${voiceId}.`);
+          try {
+            await textChannel.delete('Stale voice-text channel cleanup');
+            console.log(`[VoiceTextChannelManager] Deleted stale text channel ${textChannel.id}.`);
+          } catch (error) {
+            console.error(`[VoiceTextChannelManager] Error deleting stale text channel ${textChannel.id}: ${error.message}`);
+          }
           this.voiceTextChannels.delete(voiceId);
         }
       }

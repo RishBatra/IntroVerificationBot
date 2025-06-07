@@ -4,6 +4,11 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('cleanvoicechannels')
         .setDescription('Manually cleanup all voice-text channels')
+        .addBooleanOption(option =>
+            option.setName('force')
+                .setDescription('Force delete all voice-text channels regardless of voice channel status')
+                .setRequired(false)
+        )
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
@@ -11,6 +16,7 @@ module.exports = {
 
         try {
             const guild = interaction.guild;
+            const forceDelete = interaction.options.getBoolean('force') || false;
             let deletedCount = 0;
             let skippedCount = 0;
             let errorCount = 0;
@@ -20,7 +26,7 @@ module.exports = {
                 channel => channel.type === 0 && channel.name && channel.name.endsWith('-text')
             );
 
-            await interaction.editReply(`Found ${textChannels.size} voice-text channels. Starting cleanup...`);
+            await interaction.editReply(`Found ${textChannels.size} voice-text channels. Starting cleanup...${forceDelete ? ' (FORCE MODE)' : ''}`);
 
             for (const [, channel] of textChannels) {
                 try {
@@ -29,11 +35,11 @@ module.exports = {
                     
                     // Find the corresponding voice channel
                     const voiceChannel = guild.channels.cache.find(
-                        ch => ch.type === 2 && ch.name === voiceChannelName
+                        ch => ch.type === 2 && ch.name === voiceChannelName && ch.parent === channel.parent
                     );
 
-                    // Delete if voice channel doesn't exist or is empty
-                    if (!voiceChannel || voiceChannel.members.size === 0) {
+                    // Delete if force mode, or if voice channel doesn't exist or is empty
+                    if (forceDelete || !voiceChannel || voiceChannel.members.size === 0) {
                         // Clear messages first
                         try {
                             const messages = await channel.messages.fetch({ limit: 100 });
@@ -48,6 +54,7 @@ module.exports = {
                         // Delete the channel
                         await channel.delete('Voice-text channel cleanup');
                         deletedCount++;
+                        console.log(`[CleanupCommand] Deleted text channel: ${channel.name}`);
                         
                         // Add a small delay to prevent rate limiting
                         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -60,12 +67,30 @@ module.exports = {
                 }
             }
 
+            // Also clean up the VoiceTextChannelManager cache
+            const voiceTextManager = interaction.client.voiceTextManager;
+            if (voiceTextManager) {
+                for (const [voiceId, textChannel] of voiceTextManager.voiceTextChannels) {
+                    try {
+                        // Check if text channel still exists
+                        const channelExists = guild.channels.cache.has(textChannel.id);
+                        if (!channelExists) {
+                            voiceTextManager.voiceTextChannels.delete(voiceId);
+                            console.log(`[CleanupCommand] Removed stale cache entry for voice channel ${voiceId}`);
+                        }
+                    } catch (error) {
+                        console.error(`Error cleaning cache for voice channel ${voiceId}:`, error);
+                    }
+                }
+            }
+
             // Send final report
             const report = [
                 `Cleanup completed!`,
                 `• Deleted: ${deletedCount} channels`,
                 `• Skipped: ${skippedCount} active channels`,
                 errorCount > 0 ? `• Errors: ${errorCount} channels` : '',
+                forceDelete ? '• Force mode was enabled' : '',
             ].filter(Boolean).join('\n');
 
             await interaction.editReply(report);

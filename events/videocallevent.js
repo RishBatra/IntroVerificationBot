@@ -43,7 +43,7 @@ module.exports = {
       const isVideoEventCategory = currentChannel.parent?.name === 'Video Events';
       console.log(`[VideoEvent] Current channel parent: ${currentChannel.parent?.name}. isVideoEventCategory: ${isVideoEventCategory}`);
       
-      // ***************** Video Event Logic *****************
+      // ***************** Video Event Logic Only *****************
       if (videoEvent && isVideoEventCategory) {
         console.log(`[VideoEvent] Video event configured and channel is in Video Events category.`);
         const waitingRoomId = videoEvent.waitingRoomId;
@@ -107,49 +107,6 @@ module.exports = {
             }
           }, videoEvent.timeoutDuration || 10000);
         }
-      }
-      // ***************** Regular Voice Channel Logic *****************
-      else if (voiceTextManager && !isVideoEventCategory) {
-        // If the member left voice completely (newState.channel is null):
-        if (!newState.channel) {
-          console.log(`[VideoEvent] Member ${newState.member.id} left all voice channels.`);
-          
-          // Remove their access from the text channel linked to the channel they just left.
-          if (oldState.channel) {
-            await voiceTextManager.updateTextChannelVisibility(oldState.channel, newState.member, false);
-          }
-          
-          // Additionally, iterate over ALL cached voice text channels and remove their view permission.
-          for (const [voiceId, textChannel] of voiceTextManager.voiceTextChannels) {
-            await textChannel.permissionOverwrites.edit(newState.member, { ViewChannel: false })
-              .catch(console.error);
-            console.log(`[VoiceTextChannelManager] Removed access for member ${newState.member.id} from text channel ${textChannel.id}.`);
-            
-            // If the associated voice channel is empty, purge its messages.
-            const voiceChannel = guild.channels.cache.get(voiceId);
-            if (!voiceChannel || voiceChannel.members.size === 0) {
-              console.log(`[VoiceTextChannelManager] Voice channel ${voiceId} is empty. Purging messages from text channel ${textChannel.id}.`);
-              await voiceTextManager.purgeChannelMessages(textChannel);
-            }
-          }
-        }
-        // If the member joins a voice channel:
-        else {
-          console.log(`[VideoEvent] Processing regular voice channel update for member ${newState.member.id} on channel ${newState.channel.id}.`);
-          // Grant access for the channel the member just joined.
-          await voiceTextManager.updateTextChannelVisibility(newState.channel, newState.member, true);
-          
-          // Remove access from all other voice-linked text channels.
-          for (const [voiceId, textChannel] of voiceTextManager.voiceTextChannels) {
-            if (voiceId !== newState.channel.id) {
-              await textChannel.permissionOverwrites.edit(newState.member, { ViewChannel: false })
-                .catch(console.error);
-              console.log(`[VoiceTextChannelManager] Removed access for member ${newState.member.id} from text channel ${textChannel.id} (not current voice channel).`);
-            }
-          }
-        }
-      } else {
-        console.log(`[VideoEvent] voiceTextManager is not defined or not applicable.`);
       }
     } catch (error) {
       console.error('[VideoEvent] Error processing voice state update:', error);
