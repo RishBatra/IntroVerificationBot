@@ -170,9 +170,19 @@ async function sendReminder(introRecord) {
             return;
         }
 
+        // Find the Guardian role to ping
+        const guardianRole = guild.roles.cache.find(role => 
+            role.name === 'Proud Guardians' || role.name === 'Admins'
+        );
+
         const messageLink = `https://discord.com/channels/${introRecord.guildId}/${introRecord.channelId}/${introRecord.messageId}`;
         
-        const reminderMessage = `⏰ This intro needs review: ${messageLink}`;
+        let reminderMessage = `⏰ This intro needs review: ${messageLink}`;
+        
+        // Add Guardian role ping if found
+        if (guardianRole) {
+            reminderMessage = `${guardianRole} ${reminderMessage}`;
+        }
         
         await remindersChannel.send(reminderMessage);
 
