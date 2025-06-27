@@ -9,6 +9,9 @@ const EMOJIS = {
 
 // This function will be called AFTER the existing intro validation passes
 async function trackValidIntro(message) {
+    console.log(`[INTRO TRACKING] Starting to track intro from ${message.author.tag} (${message.author.id})`);
+    console.log(`[INTRO TRACKING] Message ID: ${message.id}, Channel: ${message.channel.name}, Guild: ${message.guild.name}`);
+    
     try {
         // Create intro tracking record
         const introRecord = new Intro({
@@ -20,102 +23,158 @@ async function trackValidIntro(message) {
         });
 
         await introRecord.save();
-        console.log(`Created intro tracking record for message ${message.id}`);
+        console.log(`[INTRO TRACKING] ✅ Successfully created intro record for message ${message.id}`);
+        console.log(`[INTRO TRACKING] Record details:`, {
+            messageId: introRecord.messageId,
+            userId: introRecord.userId,
+            status: introRecord.status,
+            createdAt: introRecord.createdAt
+        });
 
         // Add emoji reactions
         await addIntroReactions(message);
 
     } catch (error) {
-        console.error('Error tracking valid intro:', error);
+        console.error('[INTRO TRACKING] ❌ Error tracking valid intro:', error);
     }
 }
 
 async function addIntroReactions(message) {
+    console.log(`[EMOJI REACTIONS] Adding reactions to message ${message.id}`);
+    
     try {
         await message.react(EMOJIS.START);
+        console.log(`[EMOJI REACTIONS] ✅ Added ${EMOJIS.START} reaction`);
+        
         await message.react(EMOJIS.HOLD);
+        console.log(`[EMOJI REACTIONS] ✅ Added ${EMOJIS.HOLD} reaction`);
+        
         await message.react(EMOJIS.DENY);
-        console.log(`Added emoji reactions to intro message ${message.id}`);
+        console.log(`[EMOJI REACTIONS] ✅ Added ${EMOJIS.DENY} reaction`);
+        
+        console.log(`[EMOJI REACTIONS] ✅ Successfully added all emoji reactions to intro message ${message.id}`);
     } catch (error) {
-        console.error('Error adding emoji reactions:', error);
+        console.error('[EMOJI REACTIONS] ❌ Error adding emoji reactions:', error);
     }
 }
 
 async function handleIntroReaction(reaction, user) {
+    console.log(`[REACTION HANDLER] Reaction received: ${reaction.emoji.name} from ${user.tag} (${user.id})`);
+    console.log(`[REACTION HANDLER] Message ID: ${reaction.message.id}, Channel: ${reaction.message.channel.name}`);
+    
     // Skip bot reactions
-    if (user.bot) return;
+    if (user.bot) {
+        console.log(`[REACTION HANDLER] Skipping bot reaction from ${user.tag}`);
+        return;
+    }
 
     // Only process reactions in #intros channel
-    if (reaction.message.channel.name !== 'intros') return;
+    if (reaction.message.channel.name !== 'intros') {
+        console.log(`[REACTION HANDLER] Skipping reaction - not in #intros channel`);
+        return;
+    }
 
     // Check if user has Guardian role
     const guardianRole = reaction.message.guild.roles.cache.find(role => 
         role.name === 'Proud Guardians' || role.name === 'Admins'
     );
 
+    console.log(`[REACTION HANDLER] Guardian role found:`, guardianRole ? guardianRole.name : 'None');
+
     if (!guardianRole || !reaction.message.guild.members.cache.get(user.id).roles.cache.has(guardianRole.id)) {
+        console.log(`[REACTION HANDLER] ❌ User ${user.tag} does not have Guardian role, removing reaction`);
         // Remove reaction from non-guardian
         await reaction.users.remove(user.id);
-        console.log(`Removed reaction from non-guardian user ${user.tag}`);
+        console.log(`[REACTION HANDLER] ✅ Removed reaction from non-guardian user ${user.tag}`);
         return;
     }
+
+    console.log(`[REACTION HANDLER] ✅ User ${user.tag} has Guardian role, processing reaction`);
 
     // Find the intro record
     const introRecord = await Intro.findOne({ messageId: reaction.message.id });
     if (!introRecord) {
-        console.log(`No intro record found for message ${reaction.message.id}`);
+        console.log(`[REACTION HANDLER] ❌ No intro record found for message ${reaction.message.id}`);
         return;
     }
+
+    console.log(`[REACTION HANDLER] Found intro record:`, {
+        messageId: introRecord.messageId,
+        status: introRecord.status,
+        userId: introRecord.userId
+    });
 
     try {
         switch (reaction.emoji.name) {
             case EMOJIS.START:
+                console.log(`[REACTION HANDLER] Processing START reaction from ${user.tag}`);
                 await handleStartReaction(introRecord, reaction.message);
                 break;
             case EMOJIS.HOLD:
+                console.log(`[REACTION HANDLER] Processing HOLD reaction from ${user.tag}`);
                 await handleHoldReaction(introRecord, reaction.message);
                 break;
             case EMOJIS.DENY:
+                console.log(`[REACTION HANDLER] Processing DENY reaction from ${user.tag}`);
                 await handleDenyReaction(introRecord, reaction.message);
                 break;
+            default:
+                console.log(`[REACTION HANDLER] Unknown emoji reaction: ${reaction.emoji.name}`);
         }
     } catch (error) {
-        console.error('Error handling intro reaction:', error);
+        console.error('[REACTION HANDLER] ❌ Error handling intro reaction:', error);
     }
 }
 
 async function handleStartReaction(introRecord, message) {
+    console.log(`[START REACTION] Updating intro ${message.id} status to 'started'`);
+    
     introRecord.status = 'started';
     await introRecord.save();
+    console.log(`[START REACTION] ✅ Updated intro status to 'started'`);
 
     // Remove all reactions to clean up the message
     await message.reactions.removeAll();
+    console.log(`[START REACTION] ✅ Removed all reactions from message ${message.id}`);
 
-    console.log(`Intro ${message.id} marked as started by Guardian`);
+    console.log(`[START REACTION] ✅ Intro ${message.id} marked as started by Guardian`);
 }
 
 async function handleHoldReaction(introRecord, message) {
+    console.log(`[HOLD REACTION] Putting intro ${message.id} on hold for 24 hours`);
+    
     introRecord.status = 'hold';
     introRecord.holdUntil = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
     await introRecord.save();
+    
+    console.log(`[HOLD REACTION] ✅ Updated intro status to 'hold'`);
+    console.log(`[HOLD REACTION] Hold until: ${introRecord.holdUntil}`);
 
-    console.log(`Intro ${message.id} put on hold for 24 hours`);
+    console.log(`[HOLD REACTION] ✅ Intro ${message.id} put on hold for 24 hours`);
 }
 
 async function handleDenyReaction(introRecord, message) {
+    console.log(`[DENY REACTION] Marking intro ${message.id} as denied`);
+    
     introRecord.status = 'denied';
     await introRecord.save();
+    console.log(`[DENY REACTION] ✅ Updated intro status to 'denied'`);
 
     // Remove all reactions
     await message.reactions.removeAll();
+    console.log(`[DENY REACTION] ✅ Removed all reactions from message ${message.id}`);
 
-    console.log(`Intro ${message.id} marked as denied`);
+    console.log(`[DENY REACTION] ✅ Intro ${message.id} marked as denied`);
 }
 
 async function checkForReminders() {
+    console.log(`[REMINDER CHECK] Starting hourly reminder check at ${new Date().toISOString()}`);
+    
     try {
         const now = new Date();
         const oneMinuteAgo = new Date(now.getTime() - 1 * 60 * 1000); // 1 minute ago for testing
+
+        console.log(`[REMINDER CHECK] Looking for intros older than: ${oneMinuteAgo.toISOString()}`);
 
         // Find intros that need reminders
         const pendingIntros = await Intro.find({
@@ -127,6 +186,8 @@ async function checkForReminders() {
             ]
         });
 
+        console.log(`[REMINDER CHECK] Found ${pendingIntros.length} pending intros needing reminders`);
+
         const holdExpiredIntros = await Intro.find({
             status: 'hold',
             holdUntil: { $lt: now },
@@ -136,29 +197,40 @@ async function checkForReminders() {
             ]
         });
 
+        console.log(`[REMINDER CHECK] Found ${holdExpiredIntros.length} hold-expired intros needing reminders`);
+
         const allIntrosNeedingReminders = [...pendingIntros, ...holdExpiredIntros];
 
+        console.log(`[REMINDER CHECK] Total intros needing reminders: ${allIntrosNeedingReminders.length}`);
+
         for (const intro of allIntrosNeedingReminders) {
+            console.log(`[REMINDER CHECK] Processing reminder for intro ${intro.messageId} (status: ${intro.status})`);
             await sendReminder(intro);
         }
 
         if (allIntrosNeedingReminders.length > 0) {
-            console.log(`Sent ${allIntrosNeedingReminders.length} reminders for pending intros`);
+            console.log(`[REMINDER CHECK] ✅ Sent ${allIntrosNeedingReminders.length} reminders for pending intros`);
+        } else {
+            console.log(`[REMINDER CHECK] No reminders needed at this time`);
         }
 
     } catch (error) {
-        console.error('Error checking for reminders:', error);
+        console.error('[REMINDER CHECK] ❌ Error checking for reminders:', error);
     }
 }
 
 async function sendReminder(introRecord) {
+    console.log(`[SEND REMINDER] Sending reminder for intro ${introRecord.messageId}`);
+    
     try {
         // We need to get the guild from the client
         const guild = global.client?.guilds.cache.get(introRecord.guildId);
         if (!guild) {
-            console.log(`Guild not found for intro ${introRecord.messageId}`);
+            console.log(`[SEND REMINDER] ❌ Guild not found for intro ${introRecord.messageId}`);
             return;
         }
+
+        console.log(`[SEND REMINDER] Found guild: ${guild.name}`);
 
         // Find the reminders channel
         const remindersChannel = guild.channels.cache.find(channel => 
@@ -166,13 +238,17 @@ async function sendReminder(introRecord) {
         );
 
         if (!remindersChannel) {
-            console.log('Intro reminders channel not found');
+            console.log(`[SEND REMINDER] ❌ Intro reminders channel not found in guild ${guild.name}`);
             return;
         }
+
+        console.log(`[SEND REMINDER] Found reminders channel: #${remindersChannel.name}`);
 
         const messageLink = `https://discord.com/channels/${introRecord.guildId}/${introRecord.channelId}/${introRecord.messageId}`;
         
         const reminderMessage = `⏰ This intro needs review: ${messageLink}`;
+        
+        console.log(`[SEND REMINDER] Sending message: ${reminderMessage}`);
         
         await remindersChannel.send(reminderMessage);
 
@@ -180,10 +256,11 @@ async function sendReminder(introRecord) {
         introRecord.lastReminderSent = new Date();
         await introRecord.save();
 
-        console.log(`Sent reminder for intro ${introRecord.messageId}`);
+        console.log(`[SEND REMINDER] ✅ Successfully sent reminder for intro ${introRecord.messageId}`);
+        console.log(`[SEND REMINDER] Updated lastReminderSent to: ${introRecord.lastReminderSent}`);
 
     } catch (error) {
-        console.error('Error sending reminder:', error);
+        console.error('[SEND REMINDER] ❌ Error sending reminder:', error);
     }
 }
 
