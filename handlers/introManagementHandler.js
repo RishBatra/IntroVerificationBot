@@ -167,6 +167,56 @@ async function handleDenyReaction(introRecord, message) {
     console.log(`[DENY REACTION] ✅ Intro ${message.id} marked as denied`);
 }
 
+// Function to handle existing intros in database
+async function handleExistingIntros() {
+    console.log(`[EXISTING INTROS] Checking for existing intros in database...`);
+    
+    try {
+        const totalIntros = await Intro.countDocuments();
+        console.log(`[EXISTING INTROS] Total intros in database: ${totalIntros}`);
+        
+        if (totalIntros === 0) {
+            console.log(`[EXISTING INTROS] No intros found in database`);
+            return;
+        }
+
+        const allIntros = await Intro.find({});
+        console.log(`[EXISTING INTROS] All intros in database:`);
+        
+        allIntros.forEach((intro, index) => {
+            console.log(`[EXISTING INTROS] ${index + 1}. Message ID: ${intro.messageId}`);
+            console.log(`[EXISTING INTROS]    Status: ${intro.status}`);
+            console.log(`[EXISTING INTROS]    Created: ${intro.createdAt}`);
+            console.log(`[EXISTING INTROS]    Last Reminder: ${intro.lastReminderSent || 'None'}`);
+            console.log(`[EXISTING INTROS]    Hold Until: ${intro.holdUntil || 'None'}`);
+            console.log(`[EXISTING INTROS]    User ID: ${intro.userId}`);
+            console.log(`[EXISTING INTROS]    Guild ID: ${intro.guildId}`);
+            console.log(`[EXISTING INTROS]    Channel ID: ${intro.channelId}`);
+            console.log(`[EXISTING INTROS]    ---`);
+        });
+
+        // For testing: Update all existing intros to be eligible for reminders
+        const updatedCount = await Intro.updateMany(
+            { 
+                $or: [
+                    { lastReminderSent: { $exists: false } },
+                    { lastReminderSent: null }
+                ]
+            },
+            { 
+                $set: { 
+                    lastReminderSent: new Date(Date.now() - 2 * 60 * 1000) // Set to 2 minutes ago
+                }
+            }
+        );
+        
+        console.log(`[EXISTING INTROS] Updated ${updatedCount.modifiedCount} intros to be eligible for reminders`);
+        
+    } catch (error) {
+        console.error('[EXISTING INTROS] ❌ Error handling existing intros:', error);
+    }
+}
+
 async function checkForReminders() {
     console.log(`[REMINDER CHECK] Starting hourly reminder check at ${new Date().toISOString()}`);
     
@@ -181,12 +231,12 @@ async function checkForReminders() {
         const totalIntros = await Intro.countDocuments();
         console.log(`[REMINDER CHECK] Total intros in database: ${totalIntros}`);
 
-        // Find intros that need reminders
+        // For testing: Include ALL pending intros regardless of creation time
         const pendingIntros = await Intro.find({
             status: 'pending',
-            createdAt: { $lt: oneMinuteAgo },
             $or: [
                 { lastReminderSent: { $exists: false } },
+                { lastReminderSent: null },
                 { lastReminderSent: { $lt: oneMinuteAgo } }
             ]
         });
@@ -200,9 +250,13 @@ async function checkForReminders() {
 
         const holdExpiredIntros = await Intro.find({
             status: 'hold',
-            holdUntil: { $lt: now },
+            $or: [
+                { holdUntil: { $lt: now } },
+                { holdUntil: null }
+            ],
             $or: [
                 { lastReminderSent: { $exists: false } },
+                { lastReminderSent: null },
                 { lastReminderSent: { $lt: oneMinuteAgo } }
             ]
         });
@@ -290,5 +344,6 @@ module.exports = {
     trackValidIntro,
     handleIntroReaction,
     checkForReminders,
+    handleExistingIntros,
     EMOJIS
 }; 

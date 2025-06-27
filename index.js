@@ -4,7 +4,7 @@ require('dotenv').config();
 const commandHandler = require('./handlers/commandHandler');
 const eventHandler = require('./handlers/eventHandler');
 const mongoose = require('mongoose');
-const { checkForReminders } = require('./handlers/introManagementHandler');
+const { checkForReminders, handleExistingIntros } = require('./handlers/introManagementHandler');
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI, {
@@ -76,6 +76,9 @@ exec('node deploy-command.js', (error, stdout, stderr) => {
             const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
             client.user.setActivity(randomStatus.name, { type: randomStatus.type });
         }, 10000); // Change status every 10 seconds
+
+        // Handle existing intros in database
+        handleExistingIntros();
 
         // Start the reminder system
         setInterval(checkForReminders, 60 * 60 * 1000); // Check every hour
