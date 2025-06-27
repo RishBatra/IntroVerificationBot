@@ -78,11 +78,15 @@ exec('node deploy-command.js', (error, stdout, stderr) => {
         }, 10000); // Change status every 10 seconds
 
         // Handle existing intros in database
-        handleExistingIntros();
+        handleExistingIntros().then(() => {
+            // Run reminder check immediately after handling existing intros
+            console.log('[STARTUP] Running initial reminder check...');
+            checkForReminders();
+        });
 
-        // Start the reminder system
-        setInterval(checkForReminders, 60 * 60 * 1000); // Check every hour
-        console.log('Intro reminder system started');
+        // Start the reminder system - run every 1 minute for testing
+        setInterval(checkForReminders, 1 * 60 * 1000); // Check every 1 minute for testing
+        console.log('Intro reminder system started (checking every 1 minute)');
     });
 
     client.login(process.env.MY_DISCORD_BOT_TOKEN).catch(error => {
