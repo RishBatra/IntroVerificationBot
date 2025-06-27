@@ -1,4 +1,5 @@
 const { ChannelType } = require('discord.js');
+const { trackValidIntro } = require('./introManagementHandler');
 
 function validateIntroMessage(content) {
     const errors = [];
@@ -122,8 +123,13 @@ async function handleIntro(message) {
             console.error('Review channel not found');
         }
     } else {
-        // Handle valid introductions if needed
-        console.log(`Valid introduction from ${message.author.tag}`);
+        // NEW: Track valid intros with emoji reactions
+        console.log(`Valid introduction from ${message.author.tag} - adding tracking`);
+        try {
+            await trackValidIntro(message);
+        } catch (error) {
+            console.error('Error tracking valid intro:', error);
+        }
     }
 }
 

@@ -4,6 +4,7 @@ require('dotenv').config();
 const commandHandler = require('./handlers/commandHandler');
 const eventHandler = require('./handlers/eventHandler');
 const mongoose = require('mongoose');
+const { checkForReminders } = require('./handlers/introManagementHandler');
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI, {
@@ -33,6 +34,9 @@ const client = new Client({
     ],
     partials: [Partials.Channel] // Required to read DMs
 });
+
+// Make client globally available for reminder system
+global.client = client;
 
 // Attach the VoiceTextChannelManager to the client
 const VoiceTextChannelManager = require('./utils/voiceTextChannelManager'); // Adjust the path accordingly
@@ -72,6 +76,10 @@ exec('node deploy-command.js', (error, stdout, stderr) => {
             const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
             client.user.setActivity(randomStatus.name, { type: randomStatus.type });
         }, 10000); // Change status every 10 seconds
+
+        // Start the reminder system
+        setInterval(checkForReminders, 60 * 60 * 1000); // Check every hour
+        console.log('Intro reminder system started');
     });
 
     client.login(process.env.MY_DISCORD_BOT_TOKEN).catch(error => {

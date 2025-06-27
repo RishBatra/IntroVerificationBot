@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, userMention } = require('discord.js');
+const Intro = require('../models/intro');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -7,9 +8,14 @@ module.exports = {
         .addUserOption(option => 
             option.setName('user')
                 .setDescription('The user to verify')
-                .setRequired(true)),
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName('message_id')
+                .setDescription('Message ID of the intro being verified (optional)')
+                .setRequired(false)),
     async execute(interaction) {
         const user = interaction.options.getUser('user');
+        const messageId = interaction.options.getString('message_id');
         const member = interaction.guild.members.cache.get(user.id);
         const executor = interaction.member;
 
@@ -65,6 +71,25 @@ module.exports = {
         await interaction.deferReply({ ephemeral: true });
 
         try {
+            // If message ID is provided, update the intro status
+            if (messageId) {
+                const introRecord = await Intro.findOne({ messageId: messageId });
+                if (introRecord) {
+                    introRecord.status = 'started';
+                    await introRecord.save();
+
+                    // Try to remove reactions from the original message
+                    try {
+                        const originalMessage = await interaction.channel.messages.fetch(messageId);
+                        await originalMessage.reactions.removeAll();
+                    } catch (error) {
+                        console.log('Could not remove reactions from original message:', error.message);
+                    }
+
+                    console.log(`Updated intro status for message ${messageId}`);
+                }
+            }
+
             // Find and close the verification thread if it exists
             const verificationHelpChannel = interaction.guild.channels.cache.find(channel => channel.name === 'verification-help');
             if (verificationHelpChannel) {
