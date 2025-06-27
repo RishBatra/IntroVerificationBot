@@ -175,6 +175,11 @@ async function checkForReminders() {
         const oneMinuteAgo = new Date(now.getTime() - 1 * 60 * 1000); // 1 minute ago for testing
 
         console.log(`[REMINDER CHECK] Looking for intros older than: ${oneMinuteAgo.toISOString()}`);
+        console.log(`[REMINDER CHECK] Current time: ${now.toISOString()}`);
+
+        // First, let's check how many total intros we have
+        const totalIntros = await Intro.countDocuments();
+        console.log(`[REMINDER CHECK] Total intros in database: ${totalIntros}`);
 
         // Find intros that need reminders
         const pendingIntros = await Intro.find({
@@ -187,6 +192,11 @@ async function checkForReminders() {
         });
 
         console.log(`[REMINDER CHECK] Found ${pendingIntros.length} pending intros needing reminders`);
+        if (pendingIntros.length > 0) {
+            pendingIntros.forEach(intro => {
+                console.log(`[REMINDER CHECK] Pending intro: ${intro.messageId}, created: ${intro.createdAt}, lastReminder: ${intro.lastReminderSent || 'None'}`);
+            });
+        }
 
         const holdExpiredIntros = await Intro.find({
             status: 'hold',
@@ -198,6 +208,11 @@ async function checkForReminders() {
         });
 
         console.log(`[REMINDER CHECK] Found ${holdExpiredIntros.length} hold-expired intros needing reminders`);
+        if (holdExpiredIntros.length > 0) {
+            holdExpiredIntros.forEach(intro => {
+                console.log(`[REMINDER CHECK] Hold expired intro: ${intro.messageId}, holdUntil: ${intro.holdUntil}, lastReminder: ${intro.lastReminderSent || 'None'}`);
+            });
+        }
 
         const allIntrosNeedingReminders = [...pendingIntros, ...holdExpiredIntros];
 
@@ -227,10 +242,15 @@ async function sendReminder(introRecord) {
         const guild = global.client?.guilds.cache.get(introRecord.guildId);
         if (!guild) {
             console.log(`[SEND REMINDER] ❌ Guild not found for intro ${introRecord.messageId}`);
+            console.log(`[SEND REMINDER] Guild ID from record: ${introRecord.guildId}`);
+            console.log(`[SEND REMINDER] Available guilds:`, global.client?.guilds.cache.map(g => `${g.name} (${g.id})`));
             return;
         }
 
-        console.log(`[SEND REMINDER] Found guild: ${guild.name}`);
+        console.log(`[SEND REMINDER] Found guild: ${guild.name} (${guild.id})`);
+
+        // List all channels in the guild for debugging
+        console.log(`[SEND REMINDER] All channels in guild:`, guild.channels.cache.map(ch => `${ch.name} (${ch.type})`));
 
         // Find the reminders channel
         const remindersChannel = guild.channels.cache.find(channel => 
@@ -239,10 +259,12 @@ async function sendReminder(introRecord) {
 
         if (!remindersChannel) {
             console.log(`[SEND REMINDER] ❌ Intro reminders channel not found in guild ${guild.name}`);
+            console.log(`[SEND REMINDER] Looking for channel name: 'intro-reminders'`);
+            console.log(`[SEND REMINDER] Available text channels:`, guild.channels.cache.filter(ch => ch.type === 0).map(ch => ch.name));
             return;
         }
 
-        console.log(`[SEND REMINDER] Found reminders channel: #${remindersChannel.name}`);
+        console.log(`[SEND REMINDER] Found reminders channel: #${remindersChannel.name} (${remindersChannel.id})`);
 
         const messageLink = `https://discord.com/channels/${introRecord.guildId}/${introRecord.channelId}/${introRecord.messageId}`;
         
