@@ -32,7 +32,13 @@ const client = new Client({
         GatewayIntentBits.DirectMessages, 
         GatewayIntentBits.GuildVoiceStates
     ],
-    partials: [Partials.Channel] // Required to read DMs
+    partials: [
+        Partials.Channel,
+        Partials.Message,
+        Partials.Reaction,
+        Partials.User,
+        Partials.GuildMember
+    ]
 });
 
 // Make client globally available for reminder system
