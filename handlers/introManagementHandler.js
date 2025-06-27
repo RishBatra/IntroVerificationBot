@@ -248,12 +248,10 @@ async function checkForReminders() {
             });
         }
 
+        // Only check hold-expired intros (holdUntil has passed)
         const holdExpiredIntros = await Intro.find({
             status: 'hold',
-            $or: [
-                { holdUntil: { $lt: now } },
-                { holdUntil: null }
-            ],
+            holdUntil: { $lt: now }, // Only intros where hold time has expired
             $or: [
                 { lastReminderSent: { $exists: false } },
                 { lastReminderSent: null },
