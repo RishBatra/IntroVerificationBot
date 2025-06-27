@@ -4,7 +4,7 @@ const Intro = require('../models/intro');
 const EMOJIS = {
     START: '🟢',
     HOLD: '⏸️',
-    DENY: '💩'
+    DENY: '🔴'
 };
 
 // This function will be called AFTER the existing intro validation passes
