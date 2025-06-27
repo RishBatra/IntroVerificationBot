@@ -115,15 +115,15 @@ async function handleDenyReaction(introRecord, message) {
 async function checkForReminders() {
     try {
         const now = new Date();
-        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const oneMinuteAgo = new Date(now.getTime() - 1 * 60 * 1000); // 1 minute ago for testing
 
         // Find intros that need reminders
         const pendingIntros = await Intro.find({
             status: 'pending',
-            createdAt: { $lt: twentyFourHoursAgo },
+            createdAt: { $lt: oneMinuteAgo },
             $or: [
                 { lastReminderSent: { $exists: false } },
-                { lastReminderSent: { $lt: twentyFourHoursAgo } }
+                { lastReminderSent: { $lt: oneMinuteAgo } }
             ]
         });
 
@@ -132,7 +132,7 @@ async function checkForReminders() {
             holdUntil: { $lt: now },
             $or: [
                 { lastReminderSent: { $exists: false } },
-                { lastReminderSent: { $lt: twentyFourHoursAgo } }
+                { lastReminderSent: { $lt: oneMinuteAgo } }
             ]
         });
 
@@ -170,19 +170,9 @@ async function sendReminder(introRecord) {
             return;
         }
 
-        // Find the Guardian role to ping
-        const guardianRole = guild.roles.cache.find(role => 
-            role.name === 'Proud Guardians' || role.name === 'Admins'
-        );
-
         const messageLink = `https://discord.com/channels/${introRecord.guildId}/${introRecord.channelId}/${introRecord.messageId}`;
         
-        let reminderMessage = `⏰ This intro needs review: ${messageLink}`;
-        
-        // Add Guardian role ping if found
-        if (guardianRole) {
-            reminderMessage = `${guardianRole} ${reminderMessage}`;
-        }
+        const reminderMessage = `⏰ This intro needs review: ${messageLink}`;
         
         await remindersChannel.send(reminderMessage);
 
