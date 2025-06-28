@@ -154,7 +154,116 @@ async function handleStartReaction(introRecord, message) {
     await message.reactions.removeAll();
     console.log(`[START REACTION] ✅ Removed all reactions from message ${message.id}`);
 
+    // Start verification process
+    try {
+        await startVerificationProcess(introRecord, message);
+    } catch (error) {
+        console.error('[START REACTION] ❌ Error starting verification process:', error);
+    }
+
     console.log(`[START REACTION] ✅ Intro ${message.id} marked as started by Guardian`);
+}
+
+async function startVerificationProcess(introRecord, message) {
+    console.log(`[VERIFICATION] Starting verification process for user ${introRecord.userId}`);
+    
+    try {
+        const guild = global.client.guilds.cache.get(introRecord.guildId);
+        if (!guild) {
+            console.log(`[VERIFICATION] ❌ Guild not found for intro ${introRecord.messageId}`);
+            return;
+        }
+
+        const targetUser = await global.client.users.fetch(introRecord.userId);
+        if (!targetUser) {
+            console.log(`[VERIFICATION] ❌ Target user not found: ${introRecord.userId}`);
+            return;
+        }
+
+        // Find verification-help channel
+        const verificationHelpChannel = guild.channels.cache.find(channel => channel.name === 'verification-help');
+        if (!verificationHelpChannel) {
+            console.log(`[VERIFICATION] ❌ Verification-help channel not found`);
+            return;
+        }
+
+        // Find message-list channel
+        const messageListChannel = guild.channels.cache.find(channel => channel.name === 'message-list');
+        if (!messageListChannel) {
+            console.log(`[VERIFICATION] ❌ Message-list channel not found`);
+            return;
+        }
+
+        // Check if user already has an active verification thread
+        const existingThreads = await verificationHelpChannel.threads.fetchActive();
+        const existingThread = existingThreads.threads.find(thread => 
+            thread.name === `Verification - ${targetUser.tag}`
+        );
+
+        if (existingThread) {
+            console.log(`[VERIFICATION] ⚠️ User ${targetUser.tag} already has an active verification thread`);
+            return;
+        }
+
+        // Send message in message-list channel
+        const executorNick = "Guardian"; // Since we don't have the specific guardian info
+        const targetNick = targetUser.username;
+        
+        await messageListChannel.send(`A Guardian is messaging <@${targetUser.id}> (${targetNick})`);
+        console.log(`[VERIFICATION] ✅ Sent message to message-list channel`);
+
+        // Create a private thread in verification-help
+        const thread = await verificationHelpChannel.threads.create({
+            name: `Verification - ${targetUser.tag}`,
+            autoArchiveDuration: 10080,  // 7 days
+            reason: 'Verification process started via reaction',
+        });
+
+        console.log(`[VERIFICATION] ✅ Created verification thread: ${thread.name}`);
+
+        // Fetch and delete the initial system message
+        const starterMessage = await thread.fetchStarterMessage();
+        if (starterMessage && starterMessage.system) {
+            await starterMessage.delete();
+        }
+
+        // Add members to thread
+        await thread.members.add(targetUser.id);
+        console.log(`[VERIFICATION] ✅ Added target user to thread`);
+
+        // Send verification questions
+        const greetings = [
+            `Hello <@${targetUser.id}>, I am a Guardian and I will be helping you with verification today.`,
+            `Hi <@${targetUser.id}>, I am a Guardian, here to assist you with your verification.`,
+            `Greetings <@${targetUser.id}>, I am a Guardian, and I will guide you through the verification process.`
+        ];
+
+        const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+
+        const { EmbedBuilder } = require('discord.js');
+        const verificationQuestions = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('Verification Questions')
+            .setDescription(`${randomGreeting}\n\nPlease answer the following questions:`)
+            .addFields(
+                { name: '1.', value: 'Where did you find the server and why do you want to join it?' },
+                { name: '2.', value: 'Are you seeking support or guidance regarding your confusion about your sexuality, or are you looking for a community to connect with?' },
+                { name: '3.', value: 'What are your expectations from our LGBTQIA+ server, and how do you think it can benefit you?' },
+                { name: '4.', value: 'Are you open to learning and respecting the experiences and identities of others within the LGBTQIA+ community?' }
+            )
+            .setFooter({ text: 'Please refrain from answering in one word or small phrases.' });
+
+        // Send and pin the verification questions
+        const questionMessage = await thread.send({ embeds: [verificationQuestions] });
+        await questionMessage.pin();
+        console.log(`[VERIFICATION] ✅ Sent and pinned verification questions`);
+
+        console.log(`[VERIFICATION] ✅ Verification process completed for user ${targetUser.tag}`);
+
+    } catch (error) {
+        console.error('[VERIFICATION] ❌ Error in verification process:', error);
+        throw error;
+    }
 }
 
 async function handleHoldReaction(introRecord, message) {
