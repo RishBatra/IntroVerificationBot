@@ -125,7 +125,7 @@ async function handleIntroReaction(reaction, user) {
         switch (reaction.emoji.name) {
             case EMOJIS.START:
                 console.log(`[REACTION HANDLER] Processing START reaction from ${user.tag}`);
-                await handleStartReaction(introRecord, reaction.message);
+                await handleStartReaction(introRecord, reaction.message, user);
                 break;
             case EMOJIS.HOLD:
                 console.log(`[REACTION HANDLER] Processing HOLD reaction from ${user.tag}`);
@@ -143,20 +143,16 @@ async function handleIntroReaction(reaction, user) {
     }
 }
 
-async function handleStartReaction(introRecord, message) {
+async function handleStartReaction(introRecord, message, user) {
     console.log(`[START REACTION] Updating intro ${message.id} status to 'started'`);
     
     introRecord.status = 'started';
     await introRecord.save();
     console.log(`[START REACTION] ✅ Updated intro status to 'started'`);
 
-    // Remove all reactions to clean up the message
-    await message.reactions.removeAll();
-    console.log(`[START REACTION] ✅ Removed all reactions from message ${message.id}`);
-
-    // Start verification process
+    // Start verification process (don't remove reactions yet)
     try {
-        await startVerificationProcess(introRecord, message);
+        await startVerificationProcess(introRecord, message, user);
     } catch (error) {
         console.error('[START REACTION] ❌ Error starting verification process:', error);
     }
@@ -164,7 +160,7 @@ async function handleStartReaction(introRecord, message) {
     console.log(`[START REACTION] ✅ Intro ${message.id} marked as started by Guardian`);
 }
 
-async function startVerificationProcess(introRecord, message) {
+async function startVerificationProcess(introRecord, message, guardianUser) {
     console.log(`[VERIFICATION] Starting verification process for user ${introRecord.userId}`);
     
     try {
@@ -177,6 +173,13 @@ async function startVerificationProcess(introRecord, message) {
         const targetUser = await global.client.users.fetch(introRecord.userId);
         if (!targetUser) {
             console.log(`[VERIFICATION] ❌ Target user not found: ${introRecord.userId}`);
+            return;
+        }
+
+        // Get the guardian member object
+        const guardianMember = guild.members.cache.get(guardianUser.id);
+        if (!guardianMember) {
+            console.log(`[VERIFICATION] ❌ Guardian member not found: ${guardianUser.id}`);
             return;
         }
 
@@ -205,11 +208,11 @@ async function startVerificationProcess(introRecord, message) {
             return;
         }
 
-        // Send message in message-list channel
-        const executorNick = "Guardian"; // Since we don't have the specific guardian info
+        // Send message in message-list channel with specific guardian info
+        const executorNick = guardianMember.nickname || guardianMember.user.username;
         const targetNick = targetUser.username;
         
-        await messageListChannel.send(`A Guardian is messaging <@${targetUser.id}> (${targetNick})`);
+        await messageListChannel.send(`<@${guardianUser.id}> (${executorNick}) is messaging <@${targetUser.id}> (${targetNick})`);
         console.log(`[VERIFICATION] ✅ Sent message to message-list channel`);
 
         // Create a private thread in verification-help
@@ -229,13 +232,14 @@ async function startVerificationProcess(introRecord, message) {
 
         // Add members to thread
         await thread.members.add(targetUser.id);
-        console.log(`[VERIFICATION] ✅ Added target user to thread`);
+        await thread.members.add(guardianUser.id);
+        console.log(`[VERIFICATION] ✅ Added target user and guardian to thread`);
 
-        // Send verification questions
+        // Send verification questions with specific guardian info
         const greetings = [
-            `Hello <@${targetUser.id}>, I am a Guardian and I will be helping you with verification today.`,
-            `Hi <@${targetUser.id}>, I am a Guardian, here to assist you with your verification.`,
-            `Greetings <@${targetUser.id}>, I am a Guardian, and I will guide you through the verification process.`
+            `Hello <@${targetUser.id}>, I am <@${guardianUser.id}> and I will be helping you with verification today.`,
+            `Hi <@${targetUser.id}>, I am <@${guardianUser.id}>, here to assist you with your verification.`,
+            `Greetings <@${targetUser.id}>, I am <@${guardianUser.id}>, and I will guide you through the verification process.`
         ];
 
         const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
@@ -286,7 +290,7 @@ async function handleDenyReaction(introRecord, message) {
     await introRecord.save();
     console.log(`[DENY REACTION] ✅ Updated intro status to 'denied'`);
 
-    // Remove all reactions
+    // Remove all reactions since this is a final action
     await message.reactions.removeAll();
     console.log(`[DENY REACTION] ✅ Removed all reactions from message ${message.id}`);
 

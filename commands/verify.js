@@ -78,10 +78,11 @@ module.exports = {
                     introRecord.status = 'started';
                     await introRecord.save();
 
-                    // Try to remove reactions from the original message
+                    // Try to remove reactions from the original message since verification is complete
                     try {
                         const originalMessage = await interaction.channel.messages.fetch(messageId);
                         await originalMessage.reactions.removeAll();
+                        console.log(`Removed reactions from intro message ${messageId} - verification complete`);
                     } catch (error) {
                         console.log('Could not remove reactions from original message:', error.message);
                     }
