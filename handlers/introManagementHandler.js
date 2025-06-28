@@ -74,14 +74,31 @@ async function handleIntroReaction(reaction, user) {
         return;
     }
 
-    // Check if user has Guardian role
-    const guardianRole = reaction.message.guild.roles.cache.find(role => 
-        role.name === 'Proud Guardians' || role.name === 'Admins'
-    );
+    // Get the member object to check roles
+    const member = reaction.message.guild.members.cache.get(user.id);
+    if (!member) {
+        console.log(`[REACTION HANDLER] ❌ Could not find member object for user ${user.tag}`);
+        return;
+    }
 
-    console.log(`[REACTION HANDLER] Guardian role found:`, guardianRole ? guardianRole.name : 'None');
+    // Check for Guardian roles
+    const proudGuardiansRole = reaction.message.guild.roles.cache.find(role => role.name === 'Proud Guardians');
+    const adminRole = reaction.message.guild.roles.cache.find(role => role.name === 'Admins');
 
-    if (!guardianRole || !reaction.message.guild.members.cache.get(user.id).roles.cache.has(guardianRole.id)) {
+    console.log(`[REACTION HANDLER] Proud Guardians role found:`, proudGuardiansRole ? proudGuardiansRole.name : 'None');
+    console.log(`[REACTION HANDLER] Admins role found:`, adminRole ? adminRole.name : 'None');
+    console.log(`[REACTION HANDLER] User roles:`, member.roles.cache.map(role => role.name));
+
+    // Check if user has either Guardian role
+    const hasProudGuardians = proudGuardiansRole && member.roles.cache.has(proudGuardiansRole.id);
+    const hasAdmin = adminRole && member.roles.cache.has(adminRole.id);
+    const hasGuardianRole = hasProudGuardians || hasAdmin;
+
+    console.log(`[REACTION HANDLER] User has Proud Guardians: ${hasProudGuardians}`);
+    console.log(`[REACTION HANDLER] User has Admin: ${hasAdmin}`);
+    console.log(`[REACTION HANDLER] User has Guardian role: ${hasGuardianRole}`);
+
+    if (!hasGuardianRole) {
         console.log(`[REACTION HANDLER] ❌ User ${user.tag} does not have Guardian role, removing reaction`);
         // Remove reaction from non-guardian
         await reaction.users.remove(user.id);
