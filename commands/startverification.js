@@ -62,7 +62,7 @@ module.exports = {
         try {
             const thread = await verificationHelpChannel.threads.create({
                 name: `Verification - ${targetUser.tag}`,
-                autoArchiveDuration: 10080,  // Set to 7 days instead of 60 minutes
+                autoArchiveDuration: 10080,  // Maximum allowed by Discord (7 days)
                 reason: 'Verification process',
             });
 
