@@ -361,6 +361,9 @@ async function checkForReminders() {
         const totalIntros = await Intro.countDocuments();
         console.log(`[REMINDER CHECK] Total intros in database: ${totalIntros}`);
 
+        // Check for users who already have verified role and update their status
+        await checkAndUpdateVerifiedUsers();
+
         // For testing: Include ALL pending intros regardless of creation time
         const pendingIntros = await Intro.find({
             status: 'pending',
@@ -413,6 +416,81 @@ async function checkForReminders() {
 
     } catch (error) {
         console.error('[REMINDER CHECK] ❌ Error checking for reminders:', error);
+    }
+}
+
+async function checkAndUpdateVerifiedUsers() {
+    console.log(`[VERIFIED CHECK] Checking for users who already have verified role...`);
+    
+    try {
+        // Get all intros that are not already verified
+        const nonVerifiedIntros = await Intro.find({
+            status: { $ne: 'verified' }
+        });
+
+        console.log(`[VERIFIED CHECK] Found ${nonVerifiedIntros.length} non-verified intros to check`);
+
+        let updatedCount = 0;
+
+        for (const intro of nonVerifiedIntros) {
+            try {
+                // Get the guild
+                const guild = global.client.guilds.cache.get(intro.guildId);
+                if (!guild) {
+                    console.log(`[VERIFIED CHECK] Guild not found for intro ${intro.messageId}`);
+                    continue;
+                }
+
+                // Get the member
+                const member = await guild.members.fetch(intro.userId);
+                if (!member) {
+                    console.log(`[VERIFIED CHECK] Member not found for user ${intro.userId}`);
+                    continue;
+                }
+
+                // Check if user has verified role
+                const verifiedRole = guild.roles.cache.find(role => role.name === 'Verified');
+                if (!verifiedRole) {
+                    console.log(`[VERIFIED CHECK] Verified role not found in guild ${guild.name}`);
+                    continue;
+                }
+
+                if (member.roles.cache.has(verifiedRole.id)) {
+                    // User has verified role, update intro status
+                    intro.status = 'verified';
+                    await intro.save();
+                    updatedCount++;
+                    console.log(`[VERIFIED CHECK] ✅ Updated intro ${intro.messageId} to 'verified' for user ${member.user.tag}`);
+
+                    // Try to remove reactions from the intro message
+                    try {
+                        const introsChannel = guild.channels.cache.find(channel => 
+                            channel.name === 'intros'
+                        );
+                        
+                        if (introsChannel) {
+                            const originalMessage = await introsChannel.messages.fetch(intro.messageId);
+                            await originalMessage.reactions.removeAll();
+                            console.log(`[VERIFIED CHECK] ✅ Removed reactions from intro message ${intro.messageId}`);
+                        }
+                    } catch (error) {
+                        console.log(`[VERIFIED CHECK] Could not remove reactions from message ${intro.messageId}:`, error.message);
+                    }
+                }
+
+            } catch (error) {
+                console.error(`[VERIFIED CHECK] Error checking user ${intro.userId}:`, error);
+            }
+        }
+
+        if (updatedCount > 0) {
+            console.log(`[VERIFIED CHECK] ✅ Updated ${updatedCount} intros to 'verified' status`);
+        } else {
+            console.log(`[VERIFIED CHECK] No intros needed status updates`);
+        }
+
+    } catch (error) {
+        console.error('[VERIFIED CHECK] ❌ Error checking verified users:', error);
     }
 }
 
