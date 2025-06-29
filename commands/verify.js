@@ -80,9 +80,18 @@ module.exports = {
 
                     // Try to remove reactions from the original message since verification is complete
                     try {
-                        const originalMessage = await interaction.channel.messages.fetch(messageId);
-                        await originalMessage.reactions.removeAll();
-                        console.log(`Removed reactions from intro message ${messageId} - verification complete`);
+                        // Find the intros channel where the message is located
+                        const introsChannel = interaction.guild.channels.cache.find(channel => 
+                            channel.name === 'intros'
+                        );
+                        
+                        if (introsChannel) {
+                            const originalMessage = await introsChannel.messages.fetch(messageId);
+                            await originalMessage.reactions.removeAll();
+                            console.log(`Removed reactions from intro message ${messageId} - verification complete`);
+                        } else {
+                            console.log('Intros channel not found');
+                        }
                     } catch (error) {
                         console.log('Could not remove reactions from original message:', error.message);
                     }
