@@ -8,7 +8,7 @@ const introSchema = new mongoose.Schema({
     status: { 
         type: String, 
         required: true, 
-        enum: ['pending', 'started', 'hold', 'denied', 'verified'],
+        enum: ['pending', 'started', 'hold', 'denied', 'verified', 'archived'],
         default: 'pending'
     },
     createdAt: { type: Date, default: Date.now },
