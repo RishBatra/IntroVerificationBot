@@ -425,12 +425,13 @@ async function checkAndUpdateVerifiedUsers() {
     try {
         // Get all intros that are not already verified
         const nonVerifiedIntros = await Intro.find({
-            status: { $ne: 'verified' }
+            status: { $nin: ['verified', 'archived'] }
         });
 
         console.log(`[VERIFIED CHECK] Found ${nonVerifiedIntros.length} non-verified intros to check`);
 
         let updatedCount = 0;
+        let archivedCount = 0;
 
         for (const intro of nonVerifiedIntros) {
             try {
@@ -441,8 +442,24 @@ async function checkAndUpdateVerifiedUsers() {
                     continue;
                 }
 
-                // Get the member
-                const member = await guild.members.fetch(intro.userId);
+                // Get the member - handle users who have left the server
+                let member;
+                try {
+                    member = await guild.members.fetch(intro.userId);
+                } catch (fetchError) {
+                    // Check if it's the "Unknown Member" error (user left server)
+                    if (fetchError.code === 10007) {
+                        console.log(`[VERIFIED CHECK] User ${intro.userId} has left the server, archiving intro ${intro.messageId}`);
+                        intro.status = 'archived';
+                        await intro.save();
+                        archivedCount++;
+                        continue;
+                    } else {
+                        // Re-throw other errors
+                        throw fetchError;
+                    }
+                }
+
                 if (!member) {
                     console.log(`[VERIFIED CHECK] Member not found for user ${intro.userId}`);
                     continue;
@@ -485,7 +502,11 @@ async function checkAndUpdateVerifiedUsers() {
 
         if (updatedCount > 0) {
             console.log(`[VERIFIED CHECK] ✅ Updated ${updatedCount} intros to 'verified' status`);
-        } else {
+        }
+        if (archivedCount > 0) {
+            console.log(`[VERIFIED CHECK] ✅ Archived ${archivedCount} intros from users who left the server`);
+        }
+        if (updatedCount === 0 && archivedCount === 0) {
             console.log(`[VERIFIED CHECK] No intros needed status updates`);
         }
 
