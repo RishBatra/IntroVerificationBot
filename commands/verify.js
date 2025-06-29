@@ -75,7 +75,17 @@ module.exports = {
             if (messageId) {
                 const introRecord = await Intro.findOne({ messageId: messageId });
                 if (introRecord) {
-                    introRecord.status = 'started';
+                    // Check if user has verified role to determine final status
+                    const hasVerifiedRole = member.roles.cache.has(verifiedRole.id);
+                    
+                    if (hasVerifiedRole) {
+                        introRecord.status = 'verified';
+                        console.log(`User ${user.tag} already has verified role, setting status to 'verified'`);
+                    } else {
+                        introRecord.status = 'started';
+                        console.log(`User ${user.tag} does not have verified role yet, setting status to 'started'`);
+                    }
+                    
                     await introRecord.save();
 
                     // Try to remove reactions from the original message since verification is complete
@@ -96,7 +106,7 @@ module.exports = {
                         console.log('Could not remove reactions from original message:', error.message);
                     }
 
-                    console.log(`Updated intro status for message ${messageId}`);
+                    console.log(`Updated intro status for message ${messageId} to: ${introRecord.status}`);
                 }
             }
 
@@ -123,6 +133,42 @@ module.exports = {
             // Remove the Waiting for Verification role from the target user
             await member.roles.remove(waitingForVerificationRole);
             console.log('Waiting for Verification role removed.');
+
+            // Update intro status to verified (with or without message ID)
+            let introRecord = null;
+            if (messageId) {
+                // If message ID was provided, use that
+                introRecord = await Intro.findOne({ messageId: messageId });
+            } else {
+                // If no message ID, find the most recent pending/started intro for this user
+                introRecord = await Intro.findOne({ 
+                    userId: user.id,
+                    status: { $in: ['pending', 'started'] }
+                }).sort({ createdAt: -1 }); // Get the most recent one
+            }
+
+            if (introRecord) {
+                introRecord.status = 'verified';
+                await introRecord.save();
+                console.log(`Updated intro status to 'verified' for user ${user.tag} (message: ${introRecord.messageId})`);
+
+                // Try to remove reactions from the intro message
+                try {
+                    const introsChannel = interaction.guild.channels.cache.find(channel => 
+                        channel.name === 'intros'
+                    );
+                    
+                    if (introsChannel) {
+                        const originalMessage = await introsChannel.messages.fetch(introRecord.messageId);
+                        await originalMessage.reactions.removeAll();
+                        console.log(`Removed reactions from intro message ${introRecord.messageId} - verification complete`);
+                    }
+                } catch (error) {
+                    console.log(`Could not remove reactions from message ${introRecord.messageId}:`, error.message);
+                }
+            } else {
+                console.log(`No intro record found for user ${user.tag}`);
+            }
 
             // Create a success embed message
             const successEmbed = new EmbedBuilder()
