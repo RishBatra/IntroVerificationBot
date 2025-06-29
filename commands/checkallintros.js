@@ -5,7 +5,6 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('checkallintros')
         .setDescription('Check status of all intros in the database')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
         .addStringOption(option =>
             option.setName('status')
                 .setDescription('Filter by status (optional)')
