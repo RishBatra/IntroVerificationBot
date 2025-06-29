@@ -33,12 +33,17 @@ module.exports = {
 
                 if (deletionLog) {
                     const { executor, target } = deletionLog;
-                    if (target.id === message.author.id) {
-                        deleter = executor.tag;
+                    if (target && message.author && target.id === message.author.id) {
+                        deleter = executor ? executor.tag : 'Unknown';
                     }
                 }
             } catch (error) {
                 console.error('Error fetching audit logs:', error);
+            }
+
+            if (!message.author) {
+                console.log('Message author is null, skipping log creation');
+                return;
             }
 
             const embed = new EmbedBuilder()
