@@ -61,7 +61,18 @@ module.exports = {
                 return interaction.editReply({ embeds: [embed], ephemeral: true });
             }
 
-            // Get status counts for footer
+            // Filter out duplicates - keep only the most recent intro per user
+            const uniqueIntros = [];
+            const seenUsers = new Set();
+            
+            for (const intro of intros) {
+                if (!seenUsers.has(intro.userId)) {
+                    seenUsers.add(intro.userId);
+                    uniqueIntros.push(intro);
+                }
+            }
+
+            // Get status counts for footer (using unique intros)
             const statusCounts = await Intro.aggregate([
                 { $match: { guildId: interaction.guildId } },
                 { $group: { _id: '$status', count: { $sum: 1 } } }
@@ -70,15 +81,15 @@ module.exports = {
             const statusMap = new Map();
             statusCounts.forEach(item => statusMap.set(item._id, item.count));
 
-            // Split intros into pages
+            // Split unique intros into pages
             const pages = [];
-            for (let i = 0; i < intros.length; i += limit) {
-                const pageIntros = intros.slice(i, i + limit);
+            for (let i = 0; i < uniqueIntros.length; i += limit) {
+                const pageIntros = uniqueIntros.slice(i, i + limit);
                 
                 const embed = new EmbedBuilder()
                     .setColor('#0099ff')
                     .setTitle(`Intro Status Report`)
-                    .setDescription(`Page ${Math.floor(i / limit) + 1}/${Math.ceil(intros.length / limit)}`)
+                    .setDescription(`Page ${Math.floor(i / limit) + 1}/${Math.ceil(uniqueIntros.length / limit)}`)
                     .setTimestamp();
 
                 // Process each intro in the page
@@ -87,6 +98,20 @@ module.exports = {
                         // Get user info
                         const user = await interaction.client.users.fetch(intro.userId);
                         const userName = user.username;
+
+                        // Check if message still exists
+                        let messageExists = true;
+                        let channel = null;
+                        let message = null;
+                        
+                        try {
+                            channel = await interaction.guild.channels.fetch(intro.channelId);
+                            if (channel) {
+                                message = await channel.messages.fetch(intro.messageId);
+                            }
+                        } catch (error) {
+                            messageExists = false;
+                        }
 
                         // Get status emoji
                         const statusEmojis = {
@@ -103,19 +128,9 @@ module.exports = {
                         
                         // For started status, try to find the thread
                         let threadInfo = '';
-                        if (intro.status === 'started') {
-                            try {
-                                const channel = await interaction.guild.channels.fetch(intro.channelId);
-                                if (channel) {
-                                    const message = await channel.messages.fetch(intro.messageId);
-                                    if (message && message.thread) {
-                                        const threadLink = `https://discord.com/channels/${intro.guildId}/${message.thread.id}`;
-                                        threadInfo = `\n[View Thread](${threadLink})`;
-                                    }
-                                }
-                            } catch (error) {
-                                console.error(`Error fetching thread for intro ${intro.messageId}:`, error);
-                            }
+                        if (intro.status === 'started' && messageExists && message && message.thread) {
+                            const threadLink = `https://discord.com/channels/${intro.guildId}/${message.thread.id}`;
+                            threadInfo = `\n[View Thread](${threadLink})`;
                         }
 
                         // Format hold info if applicable
@@ -124,14 +139,17 @@ module.exports = {
                             holdInfo = `\nHold until: <t:${Math.floor(intro.holdUntil.getTime() / 1000)}:R>`;
                         }
 
+                        // Add deleted message indicator
+                        const deletedIndicator = !messageExists ? ' 🗑️ (Message Deleted)' : '';
+
                         return {
-                            name: `${statusEmoji} ${userName} (${intro.status})`,
+                            name: `${statusEmoji} ${userName} (${intro.status})${deletedIndicator}`,
                             value: `[View Message](${messageLink})${threadInfo}${holdInfo}\nCreated: <t:${Math.floor(intro.createdAt.getTime() / 1000)}:R>`
                         };
                     } catch (error) {
                         console.error(`Error processing intro ${intro.messageId}:`, error);
                         return {
-                            name: `❓ Unknown User (${intro.status})`,
+                            name: `❓ Unknown User (${intro.status}) 🗑️ (User/Message Deleted)`,
                             value: `[View Message](https://discord.com/channels/${intro.guildId}/${intro.channelId}/${intro.messageId})\nCreated: <t:${Math.floor(intro.createdAt.getTime() / 1000)}:R>`
                         };
                     }
@@ -142,14 +160,14 @@ module.exports = {
 
                 // Add footer with stats on first page
                 if (i === 0) {
-                    const totalIntros = intros.length;
+                    const totalIntros = uniqueIntros.length;
                     const pendingCount = statusMap.get('pending') || 0;
                     const startedCount = statusMap.get('started') || 0;
                     const holdCount = statusMap.get('hold') || 0;
                     const deniedCount = statusMap.get('denied') || 0;
                     
                     embed.setFooter({ 
-                        text: `Total: ${totalIntros} | Pending: ${pendingCount} | Started: ${startedCount} | Hold: ${holdCount} | Denied: ${deniedCount}` 
+                        text: `Showing ${totalIntros} unique users | Pending: ${pendingCount} | Started: ${startedCount} | Hold: ${holdCount} | Denied: ${deniedCount}` 
                     });
                 }
 
