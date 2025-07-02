@@ -149,32 +149,33 @@ async function handleStartReaction(introRecord, message, user) {
     // Check if status is already 'started'
     if (introRecord.status === 'started') {
         console.log(`[START REACTION] ⚠️ Intro ${message.id} is already started. Archiving old thread and starting new verification process.`);
-        
         try {
             // Archive existing thread if it exists
             await archiveExistingThread(introRecord, user);
-            
+
+            // Only update lastStartedAt if at least 1 minute has passed since createdAt
+            const now = new Date();
+            const createdAt = new Date(introRecord.createdAt);
+            if (Math.abs(now.getTime() - createdAt.getTime()) > 60000) {
+                introRecord.lastStartedAt = now;
+            }
             // Update the intro record to reflect new verification process
             introRecord.status = 'started';
-            introRecord.lastStartedAt = new Date(); // Track when verification was restarted
             await introRecord.save();
             console.log(`[START REACTION] ✅ Updated intro status and timestamp for restarted verification`);
-            
             // Start new verification process
             await startVerificationProcess(introRecord, message, user);
-            
         } catch (error) {
             console.error('[START REACTION] ❌ Error restarting verification process:', error);
         }
     } else {
         // Original logic for first-time start
         console.log(`[START REACTION] Updating intro ${message.id} status to 'started'`);
-        
         introRecord.status = 'started';
-        introRecord.lastStartedAt = new Date(); // Track when verification was started
+        // Set lastStartedAt to createdAt for consistency
+        introRecord.lastStartedAt = introRecord.createdAt;
         await introRecord.save();
         console.log(`[START REACTION] ✅ Updated intro status to 'started'`);
-
         // Start verification process
         try {
             await startVerificationProcess(introRecord, message, user);
@@ -182,7 +183,6 @@ async function handleStartReaction(introRecord, message, user) {
             console.error('[START REACTION] ❌ Error starting verification process:', error);
         }
     }
-
     console.log(`[START REACTION] ✅ Intro ${message.id} marked as started by Guardian`);
 }
 
