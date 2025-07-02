@@ -144,20 +144,111 @@ async function handleIntroReaction(reaction, user) {
 }
 
 async function handleStartReaction(introRecord, message, user) {
-    console.log(`[START REACTION] Updating intro ${message.id} status to 'started'`);
+    console.log(`[START REACTION] Processing START reaction for intro ${message.id}`);
     
-    introRecord.status = 'started';
-    await introRecord.save();
-    console.log(`[START REACTION] ✅ Updated intro status to 'started'`);
+    // Check if status is already 'started'
+    if (introRecord.status === 'started') {
+        console.log(`[START REACTION] ⚠️ Intro ${message.id} is already started. Archiving old thread and starting new verification process.`);
+        
+        try {
+            // Archive existing thread if it exists
+            await archiveExistingThread(introRecord, user);
+            
+            // Update the intro record to reflect new verification process
+            introRecord.status = 'started';
+            introRecord.lastStartedAt = new Date(); // Track when verification was restarted
+            await introRecord.save();
+            console.log(`[START REACTION] ✅ Updated intro status and timestamp for restarted verification`);
+            
+            // Start new verification process
+            await startVerificationProcess(introRecord, message, user);
+            
+        } catch (error) {
+            console.error('[START REACTION] ❌ Error restarting verification process:', error);
+        }
+    } else {
+        // Original logic for first-time start
+        console.log(`[START REACTION] Updating intro ${message.id} status to 'started'`);
+        
+        introRecord.status = 'started';
+        introRecord.lastStartedAt = new Date(); // Track when verification was started
+        await introRecord.save();
+        console.log(`[START REACTION] ✅ Updated intro status to 'started'`);
 
-    // Start verification process (don't remove reactions yet)
-    try {
-        await startVerificationProcess(introRecord, message, user);
-    } catch (error) {
-        console.error('[START REACTION] ❌ Error starting verification process:', error);
+        // Start verification process
+        try {
+            await startVerificationProcess(introRecord, message, user);
+        } catch (error) {
+            console.error('[START REACTION] ❌ Error starting verification process:', error);
+        }
     }
 
     console.log(`[START REACTION] ✅ Intro ${message.id} marked as started by Guardian`);
+}
+
+async function archiveExistingThread(introRecord, guardianUser) {
+    console.log(`[ARCHIVE THREAD] Attempting to archive existing thread for user ${introRecord.userId}`);
+    
+    try {
+        const guild = global.client.guilds.cache.get(introRecord.guildId);
+        if (!guild) {
+            console.log(`[ARCHIVE THREAD] ❌ Guild not found for intro ${introRecord.messageId}`);
+            return;
+        }
+
+        const targetUser = await global.client.users.fetch(introRecord.userId);
+        if (!targetUser) {
+            console.log(`[ARCHIVE THREAD] ❌ Target user not found: ${introRecord.userId}`);
+            return;
+        }
+
+        // Find verification-help channel
+        const verificationHelpChannel = guild.channels.cache.find(channel => channel.name === 'verification-help');
+        if (!verificationHelpChannel) {
+            console.log(`[ARCHIVE THREAD] ❌ Verification-help channel not found`);
+            return;
+        }
+
+        // Find existing thread
+        const existingThreads = await verificationHelpChannel.threads.fetchActive();
+        const existingThread = existingThreads.threads.find(thread => 
+            thread.name === `Verification - ${targetUser.tag}`
+        );
+
+        if (existingThread) {
+            console.log(`[ARCHIVE THREAD] Found existing thread: ${existingThread.name}`);
+            
+            // Send a message in the thread before archiving
+            const archiveMessage = `🔄 **Verification Restarted**\n\nThis verification thread is being archived because a Guardian has restarted the verification process.\n\n**Archived by:** <@${guardianUser.id}>\n**Archived at:** ${new Date().toLocaleString()}\n\nA new verification thread will be created.`;
+            
+            try {
+                await existingThread.send(archiveMessage);
+                console.log(`[ARCHIVE THREAD] ✅ Sent archive notification to thread`);
+            } catch (error) {
+                console.log(`[ARCHIVE THREAD] Could not send archive message: ${error.message}`);
+            }
+
+            // Archive the thread
+            await existingThread.setArchived(true);
+            console.log(`[ARCHIVE THREAD] ✅ Successfully archived existing thread: ${existingThread.name}`);
+            
+            // Send notification to message-list channel
+            const messageListChannel = guild.channels.cache.find(channel => channel.name === 'message-list');
+            if (messageListChannel) {
+                const executorNick = guild.members.cache.get(guardianUser.id)?.nickname || guardianUser.username;
+                const targetNick = targetUser.username;
+                
+                await messageListChannel.send(`🔄 <@${guardianUser.id}> (${executorNick}) has restarted verification for <@${targetUser.id}> (${targetNick}) - previous thread archived`);
+                console.log(`[ARCHIVE THREAD] ✅ Sent restart notification to message-list channel`);
+            }
+        } else {
+            console.log(`[ARCHIVE THREAD] No existing thread found for user ${targetUser.tag}`);
+        }
+
+    } catch (error) {
+        console.error('[ARCHIVE THREAD] ❌ Error archiving existing thread:', error);
+        throw error;
+    }
 }
 
 async function startVerificationProcess(introRecord, message, guardianUser) {

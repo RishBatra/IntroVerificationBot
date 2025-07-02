@@ -13,11 +13,14 @@ const introSchema = new mongoose.Schema({
     },
     createdAt: { type: Date, default: Date.now },
     holdUntil: { type: Date, default: null },
-    lastReminderSent: { type: Date, default: null }
+    lastReminderSent: { type: Date, default: null },
+    lastStartedAt: { type: Date, default: null }
 });
 
 // Index for efficient queries
 introSchema.index({ status: 1, createdAt: 1 });
 introSchema.index({ status: 1, holdUntil: 1 });
+introSchema.index({ status: 1, lastReminderSent: 1 });
+introSchema.index({ userId: 1, status: 1 });
 
 module.exports = mongoose.model('Intro', introSchema); 
