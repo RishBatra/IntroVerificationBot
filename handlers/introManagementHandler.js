@@ -377,15 +377,55 @@ async function handleHoldReaction(introRecord, message) {
 async function handleDenyReaction(introRecord, message) {
     console.log(`[DENY REACTION] Marking intro ${message.id} as denied`);
     
-    introRecord.status = 'denied';
-    await introRecord.save();
-    console.log(`[DENY REACTION] ✅ Updated intro status to 'denied'`);
+    try {
+        // Update database status
+        introRecord.status = 'denied';
+        await introRecord.save();
+        console.log(`[DENY REACTION] ✅ Updated intro status to 'denied'`);
 
-    // Remove all reactions since this is a final action
-    await message.reactions.removeAll();
-    console.log(`[DENY REACTION] ✅ Removed all reactions from message ${message.id}`);
+        // Get the user and guild
+        const guild = message.guild;
+        const user = await guild.members.fetch(introRecord.userId);
+        
+        // Find the #intros channel
+        const introsChannel = guild.channels.cache.find(channel => channel.name === 'intros');
+        
+        if (introsChannel) {
+            // Create permission override directly for this user
+            await introsChannel.permissionOverwrites.create(user.id, {
+                ViewChannel: false,
+                SendMessages: false,
+                AddReactions: false,
+                ReadMessageHistory: false
+            });
+            console.log(`[DENY REACTION] ✅ Set channel permission override for ${user.user.tag} - denied access to #intros`);
+        } else {
+            console.error('[DENY REACTION] Could not find #intros channel');
+        }
+        
+        // Remove all reactions since this is a final action
+        await message.reactions.removeAll();
+        console.log(`[DENY REACTION] ✅ Removed all reactions from message ${message.id}`);
+        
+        // User will discover they no longer have access when they try to use the channel
+        
+        // Log the denial action
+        const logChannel = guild.channels.cache.find(channel => channel.name === 'intro-reminders');
+        if (logChannel) {
+            await logChannel.send(
+                `❌ **INTRO DENIED** ❌\n\n` +
+                `**User:** <@${user.id}> (${user.user.tag})\n` +
+                `**Action:** Removed access to #intros channel\n` +
+                `**Denied intro:** https://discord.com/channels/${guild.id}/${introRecord.channelId}/${introRecord.messageId}\n` +
+                `**Time:** <t:${Math.floor(Date.now() / 1000)}:F>`
+            );
+        }
 
-    console.log(`[DENY REACTION] ✅ Intro ${message.id} marked as denied`);
+    } catch (error) {
+        console.error('[DENY REACTION] ❌ Error during denial process:', error);
+    }
+
+    console.log(`[DENY REACTION] ✅ Intro ${message.id} marked as denied with channel access removed`);
 }
 
 // Function to handle existing intros in database
