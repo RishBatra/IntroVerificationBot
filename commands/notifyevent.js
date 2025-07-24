@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const { format } = require('date-fns');
 
 module.exports = {
@@ -10,7 +10,8 @@ module.exports = {
                 .setDescription('Select an event to notify about')
                 .setRequired(true)
                 .setAutocomplete(true)
-        ),
+        )
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageEvents),
     async autocomplete(interaction) {
         // Only show upcoming events
         const events = await interaction.guild.scheduledEvents.fetch();
