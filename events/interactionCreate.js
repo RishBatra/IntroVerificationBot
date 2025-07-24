@@ -6,6 +6,24 @@ const requestAccessCommand = require('../commands/requestaccess');
 module.exports = {
     name: Events.InteractionCreate,
     async execute(interaction) {
+        // Add autocomplete handler
+        if (interaction.isAutocomplete()) {
+            const command = interaction.client.commands.get(interaction.commandName);
+            
+            if (!command || !command.autocomplete) {
+                console.error(`No autocomplete function for ${interaction.commandName} was found.`);
+                return;
+            }
+            
+            try {
+                await command.autocomplete(interaction);
+            } catch (error) {
+                console.error(`Error with autocomplete for ${interaction.commandName}`);
+                console.error(error);
+            }
+            return;
+        }
+        
         if (interaction.isChatInputCommand()) {
             const command = interaction.client.commands.get(interaction.commandName);
 
