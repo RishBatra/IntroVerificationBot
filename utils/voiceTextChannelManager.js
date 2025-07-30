@@ -9,6 +9,9 @@ class VoiceTextChannelManager {
       '693018400259047444',
       '693034620618539068',
     ];
+    this.excludedCategories = [
+      '860846438262505482',
+    ];
 
     // Cleanup interval for stale channels (every 6 hours)
     setInterval(() => this.cleanupStaleChannels(), 6 * 60 * 60 * 1000);
@@ -25,6 +28,12 @@ class VoiceTextChannelManager {
       // Skip if channel is excluded
       if (this.excludedChannels.includes(voiceChannel.id)) {
         console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is excluded from text channel updates.`);
+        return null;
+      }
+      
+      // Skip if channel is in an excluded category
+      if (voiceChannel.parent && this.excludedCategories.includes(voiceChannel.parent.id)) {
+        console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is in excluded category ${voiceChannel.parent.id}.`);
         return null;
       }
 
@@ -77,6 +86,12 @@ class VoiceTextChannelManager {
     try {
       if (this.excludedChannels.includes(voiceChannel.id)) {
         console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is excluded from text channel updates.`);
+        return;
+      }
+      
+      // Skip if channel is in an excluded category
+      if (voiceChannel.parent && this.excludedCategories.includes(voiceChannel.parent.id)) {
+        console.log(`[VoiceTextChannelManager] Voice channel ${voiceChannel.id} is in excluded category ${voiceChannel.parent.id}.`);
         return;
       }
 
