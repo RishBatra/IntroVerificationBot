@@ -9,7 +9,9 @@ module.exports = {
     .addUserOption(option => option.setName('user').setDescription('The user to warn').setRequired(true))
     .addStringOption(option => option.setName('reason').setDescription('The reason for the warning').setRequired(true)),
   async execute(interaction) {
-    if (!interaction.member.roles.cache.some(role => role.name === 'Admins')) {
+    const isAdmin = interaction.member.roles.cache.some(role => role.name === 'Admins');
+    const isProudGuardian = interaction.member.roles.cache.some(role => role.name === 'Proud Guardians');
+    if (!isAdmin && !isProudGuardian) {
       return interaction.reply('You do not have permission to use this command.');
     }
 
@@ -18,10 +20,16 @@ module.exports = {
 
     let userWarnings = await Warning.findOne({ userId: user.id });
     if (!userWarnings) {
-      userWarnings = new Warning({ userId: user.id, warnings: [] });
+      userWarnings = new Warning({ guildId: interaction.guild?.id, userId: user.id, warnings: [] });
     }
 
-    userWarnings.warnings.push({ reason });
+    const issuerRole = isAdmin ? 'Admins' : 'Proud Guardians';
+    userWarnings.warnings.push({
+      reason,
+      issuerId: interaction.user.id,
+      issuerTag: interaction.user.tag,
+      issuerRole,
+    });
     await userWarnings.save();
 
     const warningCount = userWarnings.warnings.length;

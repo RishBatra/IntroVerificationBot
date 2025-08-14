@@ -21,7 +21,9 @@ module.exports = {
 
     const warningsList = userWarnings.warnings.map((w, i) => {
       const date = w.timestamp ? new Date(w.timestamp).toDateString() : 'Unknown date';
-      return `${i + 1}. ${w.reason} (on ${date})`;
+      const issuer = w.issuerTag || w.issuerId || 'Unknown';
+      const role = w.issuerRole || 'Unknown';
+      return `${i + 1}. ${w.reason} (on ${date}) — by ${issuer} [${role}]`;
     }).join('\n');
 
     const embed = new EmbedBuilder()

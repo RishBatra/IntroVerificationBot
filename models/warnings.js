@@ -7,6 +7,9 @@ const warningSchema = new mongoose.Schema({
         {
             reason: String,
             timestamp: { type: Date, default: Date.now }, // Set default date to now
+            issuerId: String,
+            issuerTag: String,
+            issuerRole: { type: String, enum: ['Admins', 'Proud Guardians'], default: 'Admins' },
         },
     ],
 });
