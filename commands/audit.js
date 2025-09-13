@@ -44,6 +44,16 @@ const {
           .setDescription("The user to audit")
           .setRequired(true)
       )
+      .addBooleanOption(option =>
+        option.setName("fallback")
+          .setDescription("Force history crawl instead of DB (slower)")
+          .setRequired(false)
+      )
+      .addBooleanOption(option =>
+        option.setName("notify")
+          .setDescription("Notify you in channel when audit completes")
+          .setRequired(false)
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
   
     async execute(interaction) {
@@ -51,6 +61,8 @@ const {
   
       const type = interaction.options.getString("type");
       const targetUser = interaction.options.getUser("target");
+      const forceFallback = interaction.options.getBoolean("fallback") ?? false;
+      const notifyInvoker = interaction.options.getBoolean("notify") ?? false;
       const member = await interaction.guild.members.fetch(targetUser.id);
       const guild = interaction.guild;
   
@@ -87,24 +99,31 @@ const {
       let distinctDayCount = 0;
 
       // Try fast path from MongoDB activity buckets
-      try {
-        const today = Math.floor(now / MS_PER_DAY);
-        const doc = await UserActivity.findOne({ guildId: guild.id, userId: targetUser.id }).lean();
-        if (doc && doc.buckets) {
-          let sum14 = 0;
-          let days30 = 0;
-          for (const [dayStr, count] of Object.entries(doc.buckets)) {
-            const day = Number(dayStr);
-            if (!Number.isFinite(day)) continue;
-            if (day >= today - 13) sum14 += count;
-            if (day >= today - 29 && count > 0) days30 += 1;
+      const shouldUseDb = !forceFallback;
+      let usedDb = false;
+      if (shouldUseDb) {
+        try {
+          const today = Math.floor(now / MS_PER_DAY);
+          const doc = await UserActivity.findOne({ guildId: guild.id, userId: targetUser.id }).lean();
+          if (doc && doc.buckets) {
+            let sum14 = 0;
+            let days30 = 0;
+            for (const [dayStr, count] of Object.entries(doc.buckets)) {
+              const day = Number(dayStr);
+              if (!Number.isFinite(day)) continue;
+              if (day >= today - 13) sum14 += count;
+              if (day >= today - 29 && count > 0) days30 += 1;
+            }
+            totalMessages = sum14; // used for sfw18/selfies
+            distinctDayCount = days30; // used for nsfw
+            usedDb = true;
           }
-          totalMessages = sum14; // used for sfw18/selfies
-          distinctDayCount = days30; // used for nsfw
-        } else {
-          throw new Error("No buckets");
+        } catch (_) {
+          // ignore and fall through to crawl
         }
-      } catch (_) {
+      }
+
+      if (!usedDb) {
         // Fallback to fetching recent history (slower)
         const since = new Date(now - daysToCheck * 24 * 60 * 60 * 1000);
         const distinctDaysSet = new Set();
@@ -198,6 +217,22 @@ const {
         .setTimestamp()
         .setFooter({ text: "Audit Bot • Pre-Granting Check", iconURL: guild.iconURL() });
   
-      return interaction.editReply({ embeds: [embed] });
+      const response = await interaction.editReply({ embeds: [embed] });
+
+      // Optional ping to the command invoker (non-ephemeral) — only when fallback crawl was used
+      if (notifyInvoker && !usedDb) {
+        const mentionContent = `<@${interaction.user.id}> Audit complete for <@${targetUser.id}> (${type.toUpperCase()}).`;
+        try {
+          await interaction.followUp({
+            content: mentionContent,
+            allowedMentions: { users: [interaction.user.id, targetUser.id] },
+            ephemeral: false
+          });
+        } catch (e) {
+          console.error('Failed to send notify ping:', e);
+        }
+      }
+
+      return response;
     }
   };
