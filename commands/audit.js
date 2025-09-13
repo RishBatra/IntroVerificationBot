@@ -4,6 +4,8 @@ const {
     ChannelType,
     PermissionFlagsBits
   } = require("discord.js");
+  const UserActivity = require("../models/userActivity");
+  const MS_PER_DAY = 86400000;
   
   // Fixed role IDs
   const GREEN_ROLE_ID = "767712239205351425";
@@ -80,28 +82,52 @@ const {
         minDistinctDays = 28; // almost daily
       }
   
-      // Count activity
-      const since = new Date(now - daysToCheck * 24 * 60 * 60 * 1000);
+      // Count activity (prefer database; fallback to history crawl)
       let totalMessages = 0;
-      let distinctDays = new Set();
-  
-      for (const channel of generalChannels.values()) {
-        let lastId;
-        while (true) {
-          const fetched = await channel.messages.fetch({ limit: 100, before: lastId }).catch(() => null);
-          if (!fetched || fetched.size === 0) break;
-  
-          for (const msg of fetched.values()) {
-            if (msg.createdAt < since) break;
-            if (msg.author.id === targetUser.id) {
-              totalMessages++;
-              distinctDays.add(`${msg.createdAt.getUTCFullYear()}-${msg.createdAt.getUTCMonth()}-${msg.createdAt.getUTCDate()}`);
-            }
+      let distinctDayCount = 0;
+
+      // Try fast path from MongoDB activity buckets
+      try {
+        const today = Math.floor(now / MS_PER_DAY);
+        const doc = await UserActivity.findOne({ guildId: guild.id, userId: targetUser.id }).lean();
+        if (doc && doc.buckets) {
+          let sum14 = 0;
+          let days30 = 0;
+          for (const [dayStr, count] of Object.entries(doc.buckets)) {
+            const day = Number(dayStr);
+            if (!Number.isFinite(day)) continue;
+            if (day >= today - 13) sum14 += count;
+            if (day >= today - 29 && count > 0) days30 += 1;
           }
-  
-          lastId = fetched.last().id;
-          if (fetched.last().createdAt < since) break;
+          totalMessages = sum14; // used for sfw18/selfies
+          distinctDayCount = days30; // used for nsfw
+        } else {
+          throw new Error("No buckets");
         }
+      } catch (_) {
+        // Fallback to fetching recent history (slower)
+        const since = new Date(now - daysToCheck * 24 * 60 * 60 * 1000);
+        const distinctDaysSet = new Set();
+        for (const channel of generalChannels.values()) {
+          let lastId;
+          while (true) {
+            const fetched = await channel.messages.fetch({ limit: 100, before: lastId }).catch(() => null);
+            if (!fetched || fetched.size === 0) break;
+
+            for (const msg of fetched.values()) {
+              if (msg.createdAt < since) break;
+              if (msg.author.id === targetUser.id) {
+                totalMessages++;
+                const bucket = Math.floor(msg.createdTimestamp / MS_PER_DAY);
+                distinctDaysSet.add(bucket);
+              }
+            }
+
+            lastId = fetched.last().id;
+            if (fetched.last().createdAt < since) break;
+          }
+        }
+        distinctDayCount = distinctDaysSet.size;
       }
   
       // Pronoun role check
@@ -153,9 +179,9 @@ const {
         titleIcon = "⭐";
         checks.push({ name: "⭐ Star Role", value: member.roles.cache.has(STAR_ROLE_ID) ? "✅ Yes" : "❌ No", inline: true });
         checks.push({ name: "📅 Time in Server", value: joinDays >= 30 ? `✅ ${joinDays} days` : `❌ ${joinDays} days (<30)`, inline: true });
-        checks.push({ name: "🗓 Active Days", value: distinctDays.size >= minDistinctDays ? `✅ ${distinctDays.size}/${minDistinctDays}` : `❌ ${distinctDays.size}/${minDistinctDays}`, inline: true });
+        checks.push({ name: "🗓 Active Days", value: distinctDayCount >= minDistinctDays ? `✅ ${distinctDayCount}/${minDistinctDays}` : `❌ ${distinctDayCount}/${minDistinctDays}`, inline: true });
   
-        if (member.roles.cache.has(STAR_ROLE_ID) && joinDays >= 30 && distinctDays.size >= minDistinctDays) {
+        if (member.roles.cache.has(STAR_ROLE_ID) && joinDays >= 30 && distinctDayCount >= minDistinctDays) {
           verdict = "✅ Eligible";
           color = 0x2ECC71;
         } else {
