@@ -126,7 +126,7 @@ const {
       if (!usedDb) {
         // Fallback to fetching recent history (slower)
         const since = new Date(now - daysToCheck * 24 * 60 * 60 * 1000);
-        const distinctDaysSet = new Set();
+        const perDayCounts = new Map();
         for (const channel of generalChannels.values()) {
           let lastId;
           while (true) {
@@ -138,7 +138,7 @@ const {
               if (msg.author.id === targetUser.id) {
                 totalMessages++;
                 const bucket = Math.floor(msg.createdTimestamp / MS_PER_DAY);
-                distinctDaysSet.add(bucket);
+                perDayCounts.set(bucket, (perDayCounts.get(bucket) || 0) + 1);
               }
             }
 
@@ -146,7 +146,24 @@ const {
             if (fetched.last().createdAt < since) break;
           }
         }
-        distinctDayCount = distinctDaysSet.size;
+        distinctDayCount = perDayCounts.size;
+
+        // Backfill database so future audits are instant
+        if (perDayCounts.size > 0) {
+          try {
+            const maxUpdate = {};
+            for (const [day, count] of perDayCounts.entries()) {
+              maxUpdate[`buckets.${day}`] = count;
+            }
+            await UserActivity.updateOne(
+              { guildId: guild.id, userId: targetUser.id },
+              { $max: maxUpdate, $set: { updatedAt: new Date() } },
+              { upsert: true }
+            );
+          } catch (e) {
+            console.error('[auditactivity] Failed to backfill UserActivity from fallback scan', e);
+          }
+        }
       }
   
       // Pronoun role check
