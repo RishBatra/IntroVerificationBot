@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -8,6 +8,10 @@ module.exports = {
         .addBooleanOption(option =>
             option.setName('send_warning')
                 .setDescription('Send a warning message in general chat')
+                .setRequired(false))
+        .addBooleanOption(option =>
+            option.setName('ids_only')
+                .setDescription('Return a plain newline-separated list of user IDs')
                 .setRequired(false)),
     
     async execute(interaction) {
@@ -80,6 +84,21 @@ Please visit ${rolesChannel ? `<#${rolesChannel.id}>` : 'the roles channel'} to 
                 await interaction.editReply({ content: 'Could not find general-chat channel to send warning.', ephemeral: true });
                 return;
             }
+        }
+
+        // If ids_only is requested, return a plain list of user IDs
+        const idsOnly = interaction.options.getBoolean('ids_only') ?? false;
+        if (idsOnly) {
+            const idLines = membersWithOnlyVerifiedRole.map(member => member.user.id).join('\n');
+
+            // If content is small enough, send directly; otherwise attach as a file
+            if (idLines.length <= 1900) {
+                await interaction.editReply({ content: idLines, components: [] });
+            } else {
+                const attachment = new AttachmentBuilder(Buffer.from(idLines, 'utf-8'), { name: 'verified_user_ids.txt' });
+                await interaction.editReply({ content: 'User IDs attached as a file.', files: [attachment], components: [] });
+            }
+            return;
         }
 
         const PAGE_SIZE = 10;
