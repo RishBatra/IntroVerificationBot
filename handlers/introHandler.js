@@ -68,6 +68,30 @@ function validateIntroMessage(content) {
         }
     }
 
+    // Reject known other-server prompts/fields that are not part of our format
+    const disallowedFieldPatterns = [
+        { pattern: /^discord\s*username\s*\/?\s*id\s*:/i, label: 'Discord UserName/ID' },
+        { pattern: /^how\s+did\s+you\s+find\s+this\s+server\s*:*/i, label: 'How did you find this server?' },
+        { pattern: /^why\s+would\s+you\s+like\s+to\s+join\s*:*/i, label: 'Why would you like to join?' }
+    ];
+
+    const foundDisallowed = new Set();
+    for (const line of lines) {
+        for (const { pattern, label } of disallowedFieldPatterns) {
+            if (pattern.test(line)) {
+                foundDisallowed.add(label);
+            }
+        }
+    }
+
+    if (foundDisallowed.size > 0) {
+        const labels = Array.from(foundDisallowed);
+        errors.push(
+            `Your intro includes fields that are not part of our server's format: \`${labels.join('`, `')}\`. Please remove them and use only: \`Age\`, \`Gender\`, \`Pronouns\`, \`Orientation\`, \`Location\`, \`Education/career\`, \`Hobbies\`, \`Trivia\`.`
+        );
+        isValid = false;
+    }
+
     return { isValid, errors, specialMessage };
 }
 
