@@ -39,6 +39,13 @@ module.exports = {
                 return;
             }
 
+            // Check bot permissions
+            const botMember = message.guild.members.me;
+            if (botMember) {
+                const hasAuditLogPerms = botMember.permissions.has('ViewAuditLog');
+                console.log(`[MESSAGE DELETE] Bot has VIEW_AUDIT_LOG permission: ${hasAuditLogPerms}`);
+            }
+
             let deleter = 'Unknown';
             let isAuthorDeleted = false;
             let messageAuthor = message.author; // Store the author, might update from audit logs
@@ -50,13 +57,22 @@ module.exports = {
                     type: AuditLogEvent.MessageDelete,
                 });
 
-                // Find the audit log entry that matches our deletion (within last 3 seconds)
-                const deletionLog = fetchedLogs.entries.find(entry => {
+                console.log(`[MESSAGE DELETE] Total audit log entries fetched: ${fetchedLogs.entries.size}`);
+                
+                // Find the audit log entry that matches our deletion (within last 5 seconds)
+                let deletionLog = fetchedLogs.entries.find(entry => {
                     const timeDiff = Date.now() - entry.createdTimestamp;
-                    return timeDiff < 3000; // Within 3 seconds
+                    console.log(`[MESSAGE DELETE] Checking entry - Time diff: ${timeDiff}ms, Executor: ${entry.executor?.tag}, Target: ${entry.target?.tag}`);
+                    return timeDiff < 5000; // Within 5 seconds
                 });
                 
-                console.log('[MESSAGE DELETE] Fetched audit logs:', deletionLog);
+                // If no recent entry found, use the first one as fallback
+                if (!deletionLog && fetchedLogs.entries.size > 0) {
+                    deletionLog = fetchedLogs.entries.first();
+                    console.log('[MESSAGE DELETE] No recent audit log found, using first entry as fallback');
+                }
+                
+                console.log('[MESSAGE DELETE] Selected audit log:', deletionLog ? `Executor: ${deletionLog.executor?.tag}, Target: ${deletionLog.target?.tag}` : 'undefined');
 
                 if (deletionLog) {
                     const { executor, target } = deletionLog;
@@ -72,7 +88,13 @@ module.exports = {
                         // Check if the author deleted their own message
                         isAuthorDeleted = executor && executor.id === messageAuthor.id;
                         console.log(`[MESSAGE DELETE] Deleter: ${deleter}, isAuthorDeleted: ${isAuthorDeleted}`);
+                    } else if (messageAuthor) {
+                        // Target doesn't match, possibly bulk delete or bot action
+                        console.log(`[MESSAGE DELETE] Audit log target doesn't match message author`);
+                        deleter = 'Unknown (possibly bulk delete)';
                     }
+                } else {
+                    console.log('[MESSAGE DELETE] No audit logs found');
                 }
             } catch (error) {
                 console.error('[MESSAGE DELETE] Error fetching audit logs:', error);
