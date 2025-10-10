@@ -390,31 +390,31 @@ async function handleDenyReaction(introRecord, message) {
 
 // Function to handle existing intros in database
 async function handleExistingIntros() {
-    console.log(`[EXISTING INTROS] Checking for existing intros in database...`);
+    // console.log(`[EXISTING INTROS] Checking for existing intros in database...`);
     
     try {
         const totalIntros = await Intro.countDocuments();
-        console.log(`[EXISTING INTROS] Total intros in database: ${totalIntros}`);
+        // console.log(`[EXISTING INTROS] Total intros in database: ${totalIntros}`);
         
         if (totalIntros === 0) {
-            console.log(`[EXISTING INTROS] No intros found in database`);
+            // console.log(`[EXISTING INTROS] No intros found in database`);
             return;
         }
 
         const allIntros = await Intro.find({});
-        console.log(`[EXISTING INTROS] All intros in database:`);
+        // console.log(`[EXISTING INTROS] All intros in database:`);
         
-        allIntros.forEach((intro, index) => {
-            console.log(`[EXISTING INTROS] ${index + 1}. Message ID: ${intro.messageId}`);
-            console.log(`[EXISTING INTROS]    Status: ${intro.status}`);
-            console.log(`[EXISTING INTROS]    Created: ${intro.createdAt}`);
-            console.log(`[EXISTING INTROS]    Last Reminder: ${intro.lastReminderSent || 'None'}`);
-            console.log(`[EXISTING INTROS]    Hold Until: ${intro.holdUntil || 'None'}`);
-            console.log(`[EXISTING INTROS]    User ID: ${intro.userId}`);
-            console.log(`[EXISTING INTROS]    Guild ID: ${intro.guildId}`);
-            console.log(`[EXISTING INTROS]    Channel ID: ${intro.channelId}`);
-            console.log(`[EXISTING INTROS]    ---`);
-        });
+        // allIntros.forEach((intro, index) => {
+        //     console.log(`[EXISTING INTROS] ${index + 1}. Message ID: ${intro.messageId}`);
+        //     console.log(`[EXISTING INTROS]    Status: ${intro.status}`);
+        //     console.log(`[EXISTING INTROS]    Created: ${intro.createdAt}`);
+        //     console.log(`[EXISTING INTROS]    Last Reminder: ${intro.lastReminderSent || 'None'}`);
+        //     console.log(`[EXISTING INTROS]    Hold Until: ${intro.holdUntil || 'None'}`);
+        //     console.log(`[EXISTING INTROS]    User ID: ${intro.userId}`);
+        //     console.log(`[EXISTING INTROS]    Guild ID: ${intro.guildId}`);
+        //     console.log(`[EXISTING INTROS]    Channel ID: ${intro.channelId}`);
+        //     console.log(`[EXISTING INTROS]    ---`);
+        // });
 
         // For testing: Update all existing intros to be eligible for reminders
         const updatedCount = await Intro.updateMany(
@@ -431,7 +431,7 @@ async function handleExistingIntros() {
             }
         );
         
-        console.log(`[EXISTING INTROS] Updated ${updatedCount.modifiedCount} intros to be eligible for reminders`);
+        // console.log(`[EXISTING INTROS] Updated ${updatedCount.modifiedCount} intros to be eligible for reminders`);
         
     } catch (error) {
         console.error('[EXISTING INTROS] ❌ Error handling existing intros:', error);
