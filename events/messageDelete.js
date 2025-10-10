@@ -143,7 +143,33 @@ module.exports = {
                             console.log(`[MESSAGE DELETE] Sent DM to ${messageAuthor.tag} about verification status change`);
                         } catch (dmError) {
                             console.error(`[MESSAGE DELETE] Failed to send DM to ${messageAuthor.tag}:`, dmError);
-                            // User might have DMs disabled, but continue with the process
+                            
+                            // If DM fails, tag user in verification-help channel
+                            const verificationHelpChannelId = '1242333346131087420';
+                            const verificationHelpChannel = message.guild.channels.cache.get(verificationHelpChannelId);
+                            
+                            if (verificationHelpChannel) {
+                                try {
+                                    const fallbackEmbed = new EmbedBuilder()
+                                        .setColor(0xff6b6b)
+                                        .setTitle('⚠️ Verification Status Changed')
+                                        .setDescription(`<@${messageAuthor.id}>, you have deleted your intro message from the server.`)
+                                        .addFields(
+                                            { name: '❌ Roles Removed', value: 'All your roles have been removed, including your **Verified** role.' },
+                                            { name: '🔄 Current Status', value: 'You now have the **Waiting for Verification** role.' },
+                                            { name: '📝 Next Steps', value: 'Please post a new intro in <#692965776545546261> to get verified again.' }
+                                        )
+                                        .setTimestamp();
+
+                                    await verificationHelpChannel.send({ 
+                                        content: `<@${messageAuthor.id}>`, 
+                                        embeds: [fallbackEmbed] 
+                                    });
+                                    console.log(`[MESSAGE DELETE] Sent notification to verification-help channel for ${messageAuthor.tag}`);
+                                } catch (channelError) {
+                                    console.error(`[MESSAGE DELETE] Failed to send message to verification-help channel:`, channelError);
+                                }
+                            }
                         }
                     } catch (error) {
                         console.error('[MESSAGE DELETE] Error managing roles:', error);
