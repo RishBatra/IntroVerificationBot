@@ -26,7 +26,7 @@ module.exports = {
         const logChannelId = '1259323620661133342';
 
         console.log(`[MESSAGE DELETE] Message deleted in channel ID: ${message.channel.id}`);
-        console.log(`[MESSAGE DELETE] Message author:`, message.author ? message.author.tag : 'Unknown');
+        console.log(`[MESSAGE DELETE] Initial message author:`, message.author ? message.author.tag : 'Unknown (will check audit logs)');
         console.log(`[MESSAGE DELETE] Message content:`, message.content || 'No content');
 
         if (message.channel.id === introsChannelId) {
@@ -41,23 +41,36 @@ module.exports = {
 
             let deleter = 'Unknown';
             let isAuthorDeleted = false;
+            let messageAuthor = message.author; // Store the author, might update from audit logs
 
             try {
                 // Fetch audit logs to find the deleter
                 const fetchedLogs = await message.guild.fetchAuditLogs({
-                    limit: 1,
+                    limit: 5, // Fetch more entries to find the right one
                     type: AuditLogEvent.MessageDelete,
                 });
 
-                const deletionLog = fetchedLogs.entries.first();
+                // Find the audit log entry that matches our deletion (within last 3 seconds)
+                const deletionLog = fetchedLogs.entries.find(entry => {
+                    const timeDiff = Date.now() - entry.createdTimestamp;
+                    return timeDiff < 3000; // Within 3 seconds
+                });
+                
                 console.log('[MESSAGE DELETE] Fetched audit logs:', deletionLog);
 
                 if (deletionLog) {
                     const { executor, target } = deletionLog;
-                    if (target && message.author && target.id === message.author.id) {
+                    
+                    // If message author is null, try to get it from audit logs
+                    if (!messageAuthor && target) {
+                        messageAuthor = target;
+                        console.log(`[MESSAGE DELETE] Got message author from audit logs: ${target.tag}`);
+                    }
+                    
+                    if (target && messageAuthor && target.id === messageAuthor.id) {
                         deleter = executor ? executor.tag : 'Unknown';
                         // Check if the author deleted their own message
-                        isAuthorDeleted = executor && executor.id === message.author.id;
+                        isAuthorDeleted = executor && executor.id === messageAuthor.id;
                         console.log(`[MESSAGE DELETE] Deleter: ${deleter}, isAuthorDeleted: ${isAuthorDeleted}`);
                     }
                 }
@@ -65,8 +78,8 @@ module.exports = {
                 console.error('[MESSAGE DELETE] Error fetching audit logs:', error);
             }
 
-            if (!message.author) {
-                console.log('[MESSAGE DELETE] Message author is null, skipping log creation');
+            if (!messageAuthor) {
+                console.log('[MESSAGE DELETE] Message author is null and could not be determined from audit logs, skipping log creation');
                 return;
             }
 
@@ -74,12 +87,12 @@ module.exports = {
             let shouldTagAdmins = false;
             const verifiedRole = message.guild.roles.cache.find(role => role.name === 'Verified');
             const waitingForVerificationRole = message.guild.roles.cache.find(role => role.name === 'Waiting for Verification');
-            const member = message.guild.members.cache.get(message.author.id);
+            const member = message.guild.members.cache.get(messageAuthor.id);
 
             if (isAuthorDeleted && member && verifiedRole && waitingForVerificationRole) {
                 // Check if user has the verified role
                 if (member.roles.cache.has(verifiedRole.id)) {
-                    console.log(`User ${message.author.tag} deleted their intro and has verified role. Removing roles...`);
+                    console.log(`[MESSAGE DELETE] User ${messageAuthor.tag} deleted their intro and has verified role. Removing roles...`);
                     shouldTagAdmins = true;
 
                     try {
@@ -88,11 +101,11 @@ module.exports = {
                         
                         // Remove all roles
                         await member.roles.remove(rolesToRemove);
-                        console.log(`Removed all roles from ${message.author.tag}`);
+                        console.log(`[MESSAGE DELETE] Removed all roles from ${messageAuthor.tag}`);
 
                         // Add waiting for verification role back
                         await member.roles.add(waitingForVerificationRole);
-                        console.log(`Added Waiting for Verification role to ${message.author.tag}`);
+                        console.log(`[MESSAGE DELETE] Added Waiting for Verification role to ${messageAuthor.tag}`);
 
                         // Send DM to the user
                         try {
@@ -108,14 +121,14 @@ module.exports = {
                                 .setFooter({ text: message.guild.name, iconURL: message.guild.iconURL() })
                                 .setTimestamp();
 
-                            await message.author.send({ embeds: [dmEmbed] });
-                            console.log(`Sent DM to ${message.author.tag} about verification status change`);
+                            await messageAuthor.send({ embeds: [dmEmbed] });
+                            console.log(`[MESSAGE DELETE] Sent DM to ${messageAuthor.tag} about verification status change`);
                         } catch (dmError) {
-                            console.error(`Failed to send DM to ${message.author.tag}:`, dmError);
+                            console.error(`[MESSAGE DELETE] Failed to send DM to ${messageAuthor.tag}:`, dmError);
                             // User might have DMs disabled, but continue with the process
                         }
                     } catch (error) {
-                        console.error('Error managing roles:', error);
+                        console.error('[MESSAGE DELETE] Error managing roles:', error);
                     }
                 }
             }
@@ -123,9 +136,9 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setColor(0xff0000)
                 .setTitle('Message Deleted')
-                .setThumbnail(message.author.displayAvatarURL())
+                .setThumbnail(messageAuthor.displayAvatarURL())
                 .addFields(
-                    { name: 'Author', value: `<@${message.author.id}>`, inline: true },
+                    { name: 'Author', value: `<@${messageAuthor.id}>`, inline: true },
                     { name: 'Channel', value: `${message.channel.name}`, inline: true },
                     { name: 'Deleted by', value: deleter, inline: true },
                     { name: 'Content', value: message.content || 'No content' }
