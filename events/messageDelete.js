@@ -3,19 +3,39 @@ const { Events, EmbedBuilder, AuditLogEvent } = require('discord.js');
 module.exports = {
     name: Events.MessageDelete,
     async execute(message) {
+        console.log('[MESSAGE DELETE EVENT] Event triggered!');
+        
+        try {
+            // Fetch partial message if needed
+            if (message.partial) {
+                console.log('[MESSAGE DELETE] Message is partial, attempting to fetch...');
+                try {
+                    await message.fetch();
+                    console.log('[MESSAGE DELETE] Message fetched successfully');
+                } catch (error) {
+                    console.error('[MESSAGE DELETE] Error fetching partial message:', error);
+                    // Continue anyway, we'll work with what we have
+                }
+            }
+        } catch (error) {
+            console.error('[MESSAGE DELETE] Error handling partial message:', error);
+        }
+
         // Check if the message is from the #intros channel
         const introsChannelId = '692965776545546261';
         const logChannelId = '1259323620661133342';
 
-        console.log(`Message deleted in channel ID: ${message.channel.id}`);
+        console.log(`[MESSAGE DELETE] Message deleted in channel ID: ${message.channel.id}`);
+        console.log(`[MESSAGE DELETE] Message author:`, message.author ? message.author.tag : 'Unknown');
+        console.log(`[MESSAGE DELETE] Message content:`, message.content || 'No content');
 
         if (message.channel.id === introsChannelId) {
-            console.log('Message is from the intros channel.');
+            console.log('[MESSAGE DELETE] Message is from the intros channel.');
 
             const logChannel = message.guild.channels.cache.get(logChannelId);
 
             if (!logChannel) {
-                console.error(`Log channel with ID ${logChannelId} not found`);
+                console.error(`[MESSAGE DELETE] Log channel with ID ${logChannelId} not found`);
                 return;
             }
 
@@ -30,7 +50,7 @@ module.exports = {
                 });
 
                 const deletionLog = fetchedLogs.entries.first();
-                console.log('Fetched audit logs:', deletionLog);
+                console.log('[MESSAGE DELETE] Fetched audit logs:', deletionLog);
 
                 if (deletionLog) {
                     const { executor, target } = deletionLog;
@@ -38,14 +58,15 @@ module.exports = {
                         deleter = executor ? executor.tag : 'Unknown';
                         // Check if the author deleted their own message
                         isAuthorDeleted = executor && executor.id === message.author.id;
+                        console.log(`[MESSAGE DELETE] Deleter: ${deleter}, isAuthorDeleted: ${isAuthorDeleted}`);
                     }
                 }
             } catch (error) {
-                console.error('Error fetching audit logs:', error);
+                console.error('[MESSAGE DELETE] Error fetching audit logs:', error);
             }
 
             if (!message.author) {
-                console.log('Message author is null, skipping log creation');
+                console.log('[MESSAGE DELETE] Message author is null, skipping log creation');
                 return;
             }
 
@@ -118,10 +139,10 @@ module.exports = {
                 ? { content: `<@&${adminsRole.id}> A verified user deleted their intro!`, embeds: [embed] }
                 : { embeds: [embed] };
 
-            logChannel.send(messageContent);
-            console.log('Logged deleted message.');
+            await logChannel.send(messageContent);
+            console.log('[MESSAGE DELETE] Logged deleted message successfully.');
         } else {
-            console.log('Message is not from the intros channel.');
+            console.log('[MESSAGE DELETE] Message is not from the intros channel.');
         }
     },
 };
