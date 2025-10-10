@@ -66,15 +66,8 @@ module.exports = {
                     return timeDiff < 5000; // Within 5 seconds
                 });
                 
-                // If no recent entry found, use the first one as fallback
-                if (!deletionLog && fetchedLogs.entries.size > 0) {
-                    deletionLog = fetchedLogs.entries.first();
-                    console.log('[MESSAGE DELETE] No recent audit log found, using first entry as fallback');
-                }
-                
-                console.log('[MESSAGE DELETE] Selected audit log:', deletionLog ? `Executor: ${deletionLog.executor?.tag}, Target: ${deletionLog.target?.tag}` : 'undefined');
-
                 if (deletionLog) {
+                    console.log('[MESSAGE DELETE] Found recent audit log entry');
                     const { executor, target } = deletionLog;
                     
                     // If message author is null, try to get it from audit logs
@@ -88,13 +81,16 @@ module.exports = {
                         // Check if the author deleted their own message
                         isAuthorDeleted = executor && executor.id === messageAuthor.id;
                         console.log(`[MESSAGE DELETE] Deleter: ${deleter}, isAuthorDeleted: ${isAuthorDeleted}`);
-                    } else if (messageAuthor) {
-                        // Target doesn't match, possibly bulk delete or bot action
-                        console.log(`[MESSAGE DELETE] Audit log target doesn't match message author`);
-                        deleter = 'Unknown (possibly bulk delete)';
                     }
                 } else {
-                    console.log('[MESSAGE DELETE] No audit logs found');
+                    console.log('[MESSAGE DELETE] No recent audit log found');
+                    // If no recent audit log and message author exists, assume self-deletion
+                    // (Discord doesn't create audit logs for users deleting their own messages)
+                    if (messageAuthor) {
+                        console.log('[MESSAGE DELETE] Assuming user deleted their own message (no audit log for self-deletions)');
+                        deleter = messageAuthor.tag;
+                        isAuthorDeleted = true;
+                    }
                 }
             } catch (error) {
                 console.error('[MESSAGE DELETE] Error fetching audit logs:', error);
