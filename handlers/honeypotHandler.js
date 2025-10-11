@@ -7,27 +7,28 @@ const Honeypot = require('../models/honeypot');
  */
 async function handleHoneypot(message) {
     try {
-        // Don't ban bots or users with administrator permissions
+        // Don't process bot messages
         if (message.author.bot) return false;
         
         const member = message.member;
         if (!member) return false;
 
-        // Don't ban administrators or moderators
-        if (member.permissions.has(PermissionFlagsBits.Administrator) || 
-            member.permissions.has(PermissionFlagsBits.BanMembers)) {
-            await message.reply('⚠️ As a moderator, you won\'t be banned, but regular users who post here will be immediately banned!');
-            return true;
-        }
-
-        // Check if this channel is a honeypot
+        // Check if this channel is a honeypot FIRST
         const honeypot = await Honeypot.findOne({
             guildId: message.guild.id,
             channelId: message.channel.id,
             enabled: true
         });
 
+        // If not a honeypot channel, exit early
         if (!honeypot) return false;
+
+        // Don't ban administrators or moderators (but warn them)
+        if (member.permissions.has(PermissionFlagsBits.Administrator) || 
+            member.permissions.has(PermissionFlagsBits.BanMembers)) {
+            await message.reply('⚠️ As a moderator, you won\'t be banned, but regular users who post here will be immediately banned!');
+            return true;
+        }
 
         // Log the user before banning
         console.log(`🍯 HONEYPOT TRIGGERED: ${message.author.tag} (${message.author.id}) posted in honeypot channel`);
