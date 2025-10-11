@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 const { handleTicket } = require('../handlers/ticketHandler');
 const { handleIntro } = require('../handlers/introHandler');
+const { handleHoneypot } = require('../handlers/honeypotHandler');
 const StickyMessage = require('../models/stickymessage');
 
 module.exports = {
@@ -20,6 +21,16 @@ module.exports = {
 
         // Handle messages in guilds (servers)
         if (message.guild) {
+            // HONEYPOT CHECK - Must be first to ban immediately
+            try {
+                const wasHoneypot = await handleHoneypot(message);
+                if (wasHoneypot) {
+                    // User was banned, stop processing
+                    return;
+                }
+            } catch (error) {
+                console.error('Error in honeypot handler:', error);
+            }
             // console.log('Message is in a guild');
             
             // Handle intro messages
