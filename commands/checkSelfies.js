@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, Collection, EmbedBuilder} = require('discord.js');
+const SelfiePost = require('../models/selfiePost');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -10,6 +11,7 @@ module.exports = {
                 .setRequired(false)),
     async execute(interaction) {
         try {
+            const startTime = Date.now();
             console.log('Command executed');
             
             if (!interaction || !interaction.member) {
@@ -44,60 +46,39 @@ module.exports = {
             await interaction.deferReply();
             console.log('Reply deferred');
 
-            const now = Date.now();
-            const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
-            console.log('Time range calculated');
-
-            let lastMessageId;
-            const allMessages = [];
-            let fetchingMessages = true;
-
-            console.log('Starting message fetching process...');
-            while (fetchingMessages) {
-                const fetchedMessages = await selfiesChannel.messages.fetch({ limit: 100, before: lastMessageId });
-                console.log(`Fetched ${fetchedMessages.size} messages`);
-
-                if (fetchedMessages.size === 0) {
-                    fetchingMessages = false;
-                    break;
-                }
-
-                allMessages.push(...fetchedMessages.values());
-                lastMessageId = fetchedMessages.last()?.id;
-                console.log(`Last message ID: ${lastMessageId}`);
-
-                if (fetchedMessages.size < 100) {
-                    fetchingMessages = false;
-                }
-            }
-
-            console.log(`Total messages fetched: ${allMessages.length}`);
-
-            const filteredMessages = allMessages.filter(message => 
-                message.attachments.size > 0 && 
-                message.createdTimestamp >= thirtyDaysAgo &&
-                message.member && message.member.roles.cache.has(role.id)
-            );
-
-            console.log(`Messages after filtering: ${filteredMessages.length}`);
-
-            const usersWithRole = interaction.guild.members.cache.filter(member => member.roles.cache.has(role.id));
+            // Calculate 30 days ago
+            const thirtyDaysAgo = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000));
+            
+            // FAST: Query database instead of scanning messages
+            console.log('Querying database for recent selfie posts...');
+            const recentPosts = await SelfiePost.find({
+                guildId: interaction.guild.id,
+                lastPostDate: { $gte: thirtyDaysAgo }
+            }).lean();
+            
+            console.log(`📊 Found ${recentPosts.length} recent posts in database`);
+            
+            // Create a Set of user IDs who posted
+            const usersWhoPosted = new Set(recentPosts.map(post => post.userId));
+            
+            // Get all members with the Photo Verified role
+            console.log('Fetching guild members...');
+            await interaction.guild.members.fetch();
+            const usersWithRole = role.members;
             console.log(`Users with the specified role: ${usersWithRole.size}`);
-
-            const usersWhoPosted = new Collection();
-
-            filteredMessages.forEach(message => {
-                usersWhoPosted.set(message.author.id, message.author);
-            });
-
-            console.log(`Users who posted: ${usersWhoPosted.size}`);
-
-            const usersWhoDidNotPost = usersWithRole.filter(member => !usersWhoPosted.has(member.id));
+            
+            // Find who didn't post
+            const usersWhoDidNotPost = usersWithRole.filter(
+                member => !usersWhoPosted.has(member.id)
+            );
+            
+            const elapsed = Date.now() - startTime;
+            console.log(`⚡ Command completed in ${elapsed}ms`);
             console.log(`Users who did not post: ${usersWhoDidNotPost.size}`);
 
             if (usersWhoDidNotPost.size === 0) {
                 console.log('All users have posted');
-                await interaction.editReply(`All users with the "${roleName}" role have posted an image in the selfies channel within the last 30 days.`);
+                await interaction.editReply(`All users with the "${roleName}" role have posted an image in the selfies channel within the last 30 days. ⚡ (${elapsed}ms)`);
             } else {
                 const userList = usersWhoDidNotPost.map(member => member.user.tag).join('\n');
                 const userMentions = usersWhoDidNotPost.map(member => `<@${member.id}>`).join(', ');
@@ -106,6 +87,7 @@ module.exports = {
                 const embed = new EmbedBuilder()
                     .setTitle('Users who have not posted an image')
                     .setDescription(`The following users with the "${roleName}" role have not posted an image in the selfies channel within the last 30 days:\n${userList}`)
+                    .setFooter({ text: `Completed in ${elapsed}ms` })
                     .setColor('#FF0000');
 
                 await interaction.editReply({ content: `The following users have not posted an image: ${userMentions}`, embeds: [embed] });
@@ -114,7 +96,7 @@ module.exports = {
                 if (sendWarning && usersWhoDidNotPost.size > 0) {
                     const warningEmbed = new EmbedBuilder()
                         .setTitle('Reminder: Post in Selfies Channel')
-                        .setDescription(`This is a reminder for members with the "${roleName}" role to post in the selfies channel. \n\nThe following members still need to post a selfie in the last 30 days: ${userMentions}`)
+                        .setDescription(`This is a reminder for members with the "${roleName}" role to post in the selfies channel at least once every 30 days. \n\nThe following members still need to post a selfie in the last 30 days: ${userMentions}`)
                         .setColor('#FFA500');
                     
                     await selfiesChannel.send({ embeds: [warningEmbed] });
@@ -125,8 +107,10 @@ module.exports = {
             console.log('Command execution completed');
         } catch (error) {
             console.error('Error executing command:', error);
-            if (!interaction.replied) {
+            if (interaction.deferred && !interaction.replied) {
                 await interaction.editReply('An error occurred while executing the command. Please try again later.');
+            } else if (!interaction.replied) {
+                await interaction.reply({ content: 'An error occurred while executing the command. Please try again later.', ephemeral: true });
             }
         }
     },

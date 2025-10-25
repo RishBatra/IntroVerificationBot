@@ -3,6 +3,7 @@ const { handleTicket } = require('../handlers/ticketHandler');
 const { handleIntro } = require('../handlers/introHandler');
 const { handleHoneypot } = require('../handlers/honeypotHandler');
 const StickyMessage = require('../models/stickymessage');
+const SelfiePost = require('../models/selfiePost');
 
 module.exports = {
     name: 'messageCreate',
@@ -40,6 +41,49 @@ module.exports = {
                     await handleIntro(message);
                 } catch (error) {
                     console.error('Error handling intro:', error);
+                }
+            }
+
+            // Track selfie posts for Photo Verified members (static images only, no GIFs)
+            if (message.channel.name === 'selfies' && message.attachments.size > 0) {
+                try {
+                    // ONLY static images - NO GIFs (prevents cheating with random GIFs)
+                    const hasStaticImage = message.attachments.some(attachment => {
+                        const contentType = attachment.contentType?.toLowerCase();
+                        return contentType?.startsWith('image/') && 
+                               contentType !== 'image/gif';
+                    });
+                    
+                    if (hasStaticImage) {
+                        // Check if user has Photo Verified role
+                        const photoVerifiedRole = message.guild.roles.cache.get('907912045817634846');
+                        
+                        if (photoVerifiedRole && message.member.roles.cache.has(photoVerifiedRole.id)) {
+                            // Update or create record in database
+                            await SelfiePost.findOneAndUpdate(
+                                { 
+                                    userId: message.author.id,
+                                    guildId: message.guild.id
+                                },
+                                {
+                                    userId: message.author.id,
+                                    username: message.author.tag,
+                                    lastPostDate: new Date(message.createdTimestamp),
+                                    channelId: message.channel.id,
+                                    messageId: message.id,
+                                    guildId: message.guild.id
+                                },
+                                { 
+                                    upsert: true,  // Create if doesn't exist
+                                    new: true       // Return updated document
+                                }
+                            );
+                            
+                            console.log(`✅ Tracked static selfie by ${message.author.tag}`);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error tracking selfie post:', error);
                 }
             }
 
