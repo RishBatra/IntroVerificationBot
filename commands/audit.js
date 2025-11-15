@@ -5,6 +5,7 @@ const {
     PermissionFlagsBits
   } = require("discord.js");
   const UserActivity = require("../models/userActivity");
+  const VoiceSession = require("../models/voiceSession");
   const MS_PER_DAY = 86400000;
   
   // Fixed role IDs
@@ -24,6 +25,30 @@ const {
     "692957855770345485", // text channels
     "693017779158253619"  // topics
   ];
+  
+  /**
+   * Get total voice hours for a user from MongoDB
+   * @param {string} guildId 
+   * @param {string} userId 
+   * @returns {Promise<number>} Total hours
+   */
+  async function getVoiceHours(guildId, userId) {
+    try {
+      const result = await VoiceSession.aggregate([
+        { $match: { guildId, userId } },
+        { $group: { _id: null, totalMs: { $sum: '$durationMs' } } }
+      ]);
+      
+      if (!result || result.length === 0) return 0;
+      
+      const totalMs = result[0].totalMs || 0;
+      const hours = totalMs / (1000 * 60 * 60);
+      return hours;
+    } catch (error) {
+      console.error('[auditactivity] Error fetching voice hours:', error);
+      return 0;
+    }
+  }
   
   module.exports = {
     data: new SlashCommandBuilder()
@@ -173,6 +198,9 @@ const {
   
       const hasPronounRole = userPronounRoles.length > 0;
   
+      // Get voice hours
+      const vcHours = await getVoiceHours(guild.id, targetUser.id);
+  
       // Checks
       const checks = [];
       let color = 0x5865F2;
@@ -182,12 +210,17 @@ const {
       if (type === "sfw18") {
         color = 0xE67E22;
         titleIcon = "🔞";
-        checks.push({ name: "🟢 Green Role", value: member.roles.cache.has(GREEN_ROLE_ID) ? "✅ Yes" : "❌ No", inline: true });
+        const hasGreenRole = member.roles.cache.has(GREEN_ROLE_ID);
+        const meetsVcRequirement = vcHours >= 10;
+        const meetsRoleOrVc = hasGreenRole || meetsVcRequirement;
+        
+        checks.push({ name: "🟢 Green Role", value: hasGreenRole ? "✅ Yes" : "❌ No", inline: true });
+        checks.push({ name: "🎧 Voice Hours", value: meetsVcRequirement ? `✅ ${vcHours.toFixed(1)}/10 hours` : `❌ ${vcHours.toFixed(1)}/10 hours`, inline: true });
         checks.push({ name: "👤 Pronouns Role", value: hasPronounRole ? `✅ ${userPronounRoles.join(", ")}` : "❌ None", inline: true });
         checks.push({ name: "📅 Time in Server", value: joinDays >= 14 ? `✅ ${joinDays} days` : `❌ ${joinDays} days (<14)`, inline: true });
         checks.push({ name: "💬 Messages", value: totalMessages >= minMessages ? `✅ ${totalMessages}/${minMessages}` : `❌ ${totalMessages}/${minMessages}`, inline: true });
   
-        if (member.roles.cache.has(GREEN_ROLE_ID) && hasPronounRole && joinDays >= 14 && totalMessages >= minMessages) {
+        if (meetsRoleOrVc && hasPronounRole && joinDays >= 14 && totalMessages >= minMessages) {
           verdict = "✅ Eligible";
           color = 0x2ECC71; // green if pass
         } else {
@@ -198,11 +231,16 @@ const {
       if (type === "selfies") {
         color = 0x2ECC71;
         titleIcon = "📸";
-        checks.push({ name: "🟢 Green Role", value: member.roles.cache.has(GREEN_ROLE_ID) ? "✅ Yes" : "❌ No", inline: true });
+        const hasGreenRole = member.roles.cache.has(GREEN_ROLE_ID);
+        const meetsVcRequirement = vcHours >= 10;
+        const meetsRoleOrVc = hasGreenRole || meetsVcRequirement;
+        
+        checks.push({ name: "🟢 Green Role", value: hasGreenRole ? "✅ Yes" : "❌ No", inline: true });
+        checks.push({ name: "🎧 Voice Hours", value: meetsVcRequirement ? `✅ ${vcHours.toFixed(1)}/10 hours` : `❌ ${vcHours.toFixed(1)}/10 hours`, inline: true });
         checks.push({ name: "📅 Time in Server", value: joinDays >= 14 ? `✅ ${joinDays} days` : `❌ ${joinDays} days (<14)`, inline: true });
         checks.push({ name: "💬 Messages", value: totalMessages >= minMessages ? `✅ ${totalMessages}/${minMessages}` : `❌ ${totalMessages}/${minMessages}`, inline: true });
   
-        if (member.roles.cache.has(GREEN_ROLE_ID) && joinDays >= 14 && totalMessages >= minMessages) {
+        if (meetsRoleOrVc && joinDays >= 14 && totalMessages >= minMessages) {
           verdict = "✅ Eligible";
           color = 0x2ECC71;
         } else {
@@ -213,11 +251,16 @@ const {
       if (type === "nsfw") {
         color = 0x9B59B6;
         titleIcon = "⭐";
-        checks.push({ name: "⭐ Star Role", value: member.roles.cache.has(STAR_ROLE_ID) ? "✅ Yes" : "❌ No", inline: true });
+        const hasStarRole = member.roles.cache.has(STAR_ROLE_ID);
+        const meetsVcRequirement = vcHours >= 30;
+        const meetsRoleOrVc = hasStarRole || meetsVcRequirement;
+        
+        checks.push({ name: "⭐ Star Role", value: hasStarRole ? "✅ Yes" : "❌ No", inline: true });
+        checks.push({ name: "🎧 Voice Hours (Star)", value: meetsVcRequirement ? `✅ ${vcHours.toFixed(1)}/30 hours` : `❌ ${vcHours.toFixed(1)}/30 hours`, inline: true });
         checks.push({ name: "📅 Time in Server", value: joinDays >= 30 ? `✅ ${joinDays} days` : `❌ ${joinDays} days (<30)`, inline: true });
         checks.push({ name: "🗓 Active Days", value: distinctDayCount >= minDistinctDays ? `✅ ${distinctDayCount}/${minDistinctDays}` : `❌ ${distinctDayCount}/${minDistinctDays}`, inline: true });
   
-        if (member.roles.cache.has(STAR_ROLE_ID) && joinDays >= 30 && distinctDayCount >= minDistinctDays) {
+        if (meetsRoleOrVc && joinDays >= 30 && distinctDayCount >= minDistinctDays) {
           verdict = "✅ Eligible";
           color = 0x2ECC71;
         } else {

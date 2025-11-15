@@ -4,6 +4,20 @@ const { handleIntro } = require('../handlers/introHandler');
 const { handleHoneypot } = require('../handlers/honeypotHandler');
 const StickyMessage = require('../models/stickymessage');
 const SelfiePost = require('../models/selfiePost');
+const UserActivity = require('../models/userActivity');
+
+// Constants for user activity tracking
+const ALLOWED_CATEGORY_IDS = [
+    "692957855770345485", // text channels
+    "693017779158253619"  // topics
+];
+const MS_PER_DAY = 86400000;
+
+// Configuration for verification help monitor
+const VERIFICATION_HELP_CHANNEL_ID = '1242333346131087420';
+const INTRO_CHANNEL_ID = '692965776545546261';
+const WAITING_FOR_VERIFICATION_ROLE_ID = '692985716040532011';
+const MOD_ROLE_ID = '800053595881078784';
 
 module.exports = {
     name: 'messageCreate',
@@ -22,7 +36,90 @@ module.exports = {
 
         // Handle messages in guilds (servers)
         if (message.guild) {
-            // HONEYPOT CHECK - Must be first to ban immediately
+            // ========================================
+            // SECTION 1: VERIFICATION HELP MONITOR
+            // ========================================
+            // Monitor verification help channel for users needing assistance
+            if (message.channel.id === VERIFICATION_HELP_CHANNEL_ID) {
+                try {
+                    // Check if user has waiting for verification role
+                    const hasWaitingRole = message.member.roles.cache.has(WAITING_FOR_VERIFICATION_ROLE_ID);
+                    
+                    if (hasWaitingRole) {
+                        // Check if message mentions #intros or contains "intro"
+                        const messageContent = message.content.toLowerCase();
+                        const mentionsIntros = message.channelMentions.has(INTRO_CHANNEL_ID) || 
+                                              messageContent.includes('intro');
+                        
+                        if (mentionsIntros) {
+                            // Ping mods
+                            const modRole = message.guild.roles.cache.get(MOD_ROLE_ID);
+                            if (modRole) {
+                                await message.channel.send(
+                                    `${modRole} - ${message.author} needs help with their intro verification.`
+                                );
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('[VerificationHelpMonitor] Error:', error);
+                }
+            }
+
+            // ========================================
+            // SECTION 2: USER ACTIVITY TRACKER
+            // ========================================
+            // Track message activity for audit command (only in allowed categories)
+            try {
+                const channel = message.channel;
+                if (channel && !channel.nsfw) {
+                    const parentId = channel.parentId ?? channel.parent?.id ?? null;
+                    if (parentId && ALLOWED_CATEGORY_IDS.includes(parentId)) {
+                        const epochDay = Math.floor((message.createdTimestamp || Date.now()) / MS_PER_DAY);
+
+                        await UserActivity.findOneAndUpdate(
+                            { guildId: message.guild.id, userId: message.author.id },
+                            {
+                                $inc: { [`buckets.${epochDay}`]: 1 },
+                                $set: { updatedAt: new Date() }
+                            },
+                            { upsert: true }
+                        );
+
+                        // Opportunistic prune: keep only last 40 days to bound doc size
+                        if (Math.random() < 0.02) {
+                            const doc = await UserActivity.findOne({ 
+                                guildId: message.guild.id, 
+                                userId: message.author.id 
+                            }).lean();
+                            
+                            if (doc && doc.buckets) {
+                                const cutoff = epochDay - 40;
+                                const toUnset = {};
+                                for (const key of Object.keys(doc.buckets)) {
+                                    const day = Number(key);
+                                    if (Number.isFinite(day) && day < cutoff) {
+                                        toUnset[`buckets.${key}`] = "";
+                                    }
+                                }
+                                if (Object.keys(toUnset).length > 0) {
+                                    await UserActivity.updateOne(
+                                        { guildId: message.guild.id, userId: message.author.id },
+                                        { $unset: toUnset }
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('[UserActivityTracker] Error tracking message activity:', error);
+            }
+
+            // ========================================
+            // SECTION 3: HONEYPOT CHECK
+            // ========================================
+            // HONEYPOT CHECK - Must be early to ban immediately
             try {
                 const wasHoneypot = await handleHoneypot(message);
                 if (wasHoneypot) {
