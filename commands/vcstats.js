@@ -1,10 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const VoiceSession = require('../models/voiceSession');
 
-// Role requirements
-const GREEN_ROLE_HOURS = 10;
-const STAR_ROLE_HOURS = 30;
-
 /**
  * Calculate total voice hours for a user
  * @param {string} guildId 
@@ -189,30 +185,6 @@ module.exports = {
                         ? `${pronoun} ${isSelf ? 'are' : 'is'} on a **${streak}-day streak**.`
                         : `${pronoun} ${isSelf ? 'don\'t' : 'doesn\'t'} have a streak yet.`,
                     inline: false
-                }
-            );
-            
-            // Progress toward roles
-            const greenProgress = Math.min(totalHours, GREEN_ROLE_HOURS);
-            const starProgress = Math.min(totalHours, STAR_ROLE_HOURS);
-            
-            const greenCompleted = totalHours >= GREEN_ROLE_HOURS;
-            const starCompleted = totalHours >= STAR_ROLE_HOURS;
-            
-            embed.addFields(
-                {
-                    name: '🟢 Green Role Progress',
-                    value: greenCompleted
-                        ? `✅ **Completed** (${formattedHours} / ${GREEN_ROLE_HOURS} hours)`
-                        : `**${greenProgress.toFixed(1)}** / ${GREEN_ROLE_HOURS} hours`,
-                    inline: true
-                },
-                {
-                    name: '⭐ Star Role Progress',
-                    value: starCompleted
-                        ? `✅ **Completed** (${formattedHours} / ${STAR_ROLE_HOURS} hours)`
-                        : `**${starProgress.toFixed(1)}** / ${STAR_ROLE_HOURS} hours`,
-                    inline: true
                 }
             );
             
