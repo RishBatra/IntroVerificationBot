@@ -38,8 +38,7 @@ module.exports = {
         const membersWithOnlyVerifiedRole = [];
 
         try {
-            // Fetch members with the Verified role only
-            const members = await guild.members.fetch();
+            const members = await guild.members.list({ limit: 1000 });
             members.forEach(member => {
                 if (member.roles.cache.size === 2 && member.roles.cache.has(verifiedRole.id)) {
                     membersWithOnlyVerifiedRole.push(member);
