@@ -266,12 +266,8 @@ async function handleVideoCallEvent(oldState, newState) {
             return;
         }
         
-        // Determine if the current voice channel belongs to the "Video Events" category.
-        const isVideoEventCategory = currentChannel.parent?.name === 'Video Events';
-        console.log(`[VideoEvent] Current channel parent: ${currentChannel.parent?.name}. isVideoEventCategory: ${isVideoEventCategory}`);
-        
         // ***************** Video Event Logic Only *****************
-        if (videoEvent && isVideoEventCategory) {
+        if (videoEvent) {
             console.log(`[VideoEvent] Video event configured and channel is in Video Events category.`);
             const waitingRoomId = videoEvent.waitingRoomId;
             const videoChannelId = videoEvent.videoChannelId;
