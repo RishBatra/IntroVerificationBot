@@ -1,4 +1,43 @@
 const { Events, EmbedBuilder, AuditLogEvent } = require('discord.js');
+const Intro = require('../models/intro');
+
+// Determines whether a user still has another live intro message in the channel
+// before we unverify them for deleting one. Checks (in order of cost): the local
+// message cache, messages tracked in the Intro collection, then a single bounded
+// page of the most recent channel messages as a safety net for anything the DB
+// tracking missed (e.g. a message posted before Intro tracking existed).
+async function userHasAnotherLiveIntro(channel, authorId, excludeMessageId) {
+    const cachedMatch = channel.messages.cache.find(m => m.author?.id === authorId && m.id !== excludeMessageId);
+    if (cachedMatch) {
+        return true;
+    }
+
+    const candidates = await Intro.find({
+        channelId: channel.id,
+        userId: authorId,
+        messageId: { $ne: excludeMessageId }
+    }).select('messageId').lean();
+
+    for (const { messageId } of candidates) {
+        try {
+            await channel.messages.fetch(messageId);
+            return true;
+        } catch (error) {
+            // That candidate is gone too, keep checking the rest
+        }
+    }
+
+    try {
+        const recentMessages = await channel.messages.fetch({ limit: 100 });
+        if (recentMessages.find(m => m.author?.id === authorId && m.id !== excludeMessageId)) {
+            return true;
+        }
+    } catch (error) {
+        console.error('[MESSAGE DELETE] Error scanning recent #intros messages:', error);
+    }
+
+    return false;
+}
 
 module.exports = {
     name: Events.MessageDelete,
@@ -110,69 +149,75 @@ module.exports = {
             if (isAuthorDeleted && member && verifiedRole && waitingForVerificationRole) {
                 // Check if user has the verified role
                 if (member.roles.cache.has(verifiedRole.id)) {
-                    console.log(`[MESSAGE DELETE] User ${messageAuthor.tag} deleted their intro and has verified role. Removing roles...`);
-                    shouldTagAdmins = true;
+                    const hasAnotherIntro = await userHasAnotherLiveIntro(message.channel, messageAuthor.id, message.id);
 
-                    try {
-                        // Get all user roles except @everyone
-                        const rolesToRemove = member.roles.cache.filter(role => role.id !== message.guild.id);
-                        
-                        // Remove all roles
-                        await member.roles.remove(rolesToRemove);
-                        console.log(`[MESSAGE DELETE] Removed all roles from ${messageAuthor.tag}`);
+                    if (hasAnotherIntro) {
+                        console.log(`[MESSAGE DELETE] User ${messageAuthor.tag} still has another intro message in #intros, skipping unverify.`);
+                    } else {
+                        console.log(`[MESSAGE DELETE] User ${messageAuthor.tag} deleted their intro and has verified role. Removing roles...`);
+                        shouldTagAdmins = true;
 
-                        // Add waiting for verification role back
-                        await member.roles.add(waitingForVerificationRole);
-                        console.log(`[MESSAGE DELETE] Added Waiting for Verification role to ${messageAuthor.tag}`);
-
-                        // Send DM to the user
                         try {
-                            const dmEmbed = new EmbedBuilder()
-                                .setColor(0xff6b6b)
-                                .setTitle('⚠️ Verification Status Changed')
-                                .setDescription('You have deleted your intro message from the server.')
-                                .addFields(
-                                    { name: '❌ Roles Removed', value: 'All your roles have been removed, including your **Verified** role.' },
-                                    { name: '🔄 Current Status', value: 'You now have the **Waiting for Verification** role.' },
-                                    { name: '📝 Next Steps', value: 'Please post a new intro in the #intros channel to get verified again.' }
-                                )
-                                .setFooter({ text: message.guild.name, iconURL: message.guild.iconURL() })
-                                .setTimestamp();
+                            // Get all user roles except @everyone
+                            const rolesToRemove = member.roles.cache.filter(role => role.id !== message.guild.id);
 
-                            await messageAuthor.send({ embeds: [dmEmbed] });
-                            console.log(`[MESSAGE DELETE] Sent DM to ${messageAuthor.tag} about verification status change`);
-                        } catch (dmError) {
-                            console.error(`[MESSAGE DELETE] Failed to send DM to ${messageAuthor.tag}:`, dmError);
-                            
-                            // If DM fails, tag user in verification-help channel
-                            const verificationHelpChannelId = '1242333346131087420';
-                            const verificationHelpChannel = message.guild.channels.cache.get(verificationHelpChannelId);
-                            
-                            if (verificationHelpChannel) {
-                                try {
-                                    const fallbackEmbed = new EmbedBuilder()
-                                        .setColor(0xff6b6b)
-                                        .setTitle('⚠️ Verification Status Changed')
-                                        .setDescription(`<@${messageAuthor.id}>, you have deleted your intro message from the server.`)
-                                        .addFields(
-                                            { name: '❌ Roles Removed', value: 'All your roles have been removed, including your **Verified** role.' },
-                                            { name: '🔄 Current Status', value: 'You now have the **Waiting for Verification** role.' },
-                                            { name: '📝 Next Steps', value: 'Please post a new intro in <#692965776545546261> to get verified again.' }
-                                        )
-                                        .setTimestamp();
+                            // Remove all roles
+                            await member.roles.remove(rolesToRemove);
+                            console.log(`[MESSAGE DELETE] Removed all roles from ${messageAuthor.tag}`);
 
-                                    await verificationHelpChannel.send({ 
-                                        content: `<@${messageAuthor.id}>`, 
-                                        embeds: [fallbackEmbed] 
-                                    });
-                                    console.log(`[MESSAGE DELETE] Sent notification to verification-help channel for ${messageAuthor.tag}`);
-                                } catch (channelError) {
-                                    console.error(`[MESSAGE DELETE] Failed to send message to verification-help channel:`, channelError);
+                            // Add waiting for verification role back
+                            await member.roles.add(waitingForVerificationRole);
+                            console.log(`[MESSAGE DELETE] Added Waiting for Verification role to ${messageAuthor.tag}`);
+
+                            // Send DM to the user
+                            try {
+                                const dmEmbed = new EmbedBuilder()
+                                    .setColor(0xff6b6b)
+                                    .setTitle('⚠️ Verification Status Changed')
+                                    .setDescription('You have deleted your intro message from the server.')
+                                    .addFields(
+                                        { name: '❌ Roles Removed', value: 'All your roles have been removed, including your **Verified** role.' },
+                                        { name: '🔄 Current Status', value: 'You now have the **Waiting for Verification** role.' },
+                                        { name: '📝 Next Steps', value: 'Please post a new intro in the #intros channel to get verified again.' }
+                                    )
+                                    .setFooter({ text: message.guild.name, iconURL: message.guild.iconURL() })
+                                    .setTimestamp();
+
+                                await messageAuthor.send({ embeds: [dmEmbed] });
+                                console.log(`[MESSAGE DELETE] Sent DM to ${messageAuthor.tag} about verification status change`);
+                            } catch (dmError) {
+                                console.error(`[MESSAGE DELETE] Failed to send DM to ${messageAuthor.tag}:`, dmError);
+
+                                // If DM fails, tag user in verification-help channel
+                                const verificationHelpChannelId = '1242333346131087420';
+                                const verificationHelpChannel = message.guild.channels.cache.get(verificationHelpChannelId);
+
+                                if (verificationHelpChannel) {
+                                    try {
+                                        const fallbackEmbed = new EmbedBuilder()
+                                            .setColor(0xff6b6b)
+                                            .setTitle('⚠️ Verification Status Changed')
+                                            .setDescription(`<@${messageAuthor.id}>, you have deleted your intro message from the server.`)
+                                            .addFields(
+                                                { name: '❌ Roles Removed', value: 'All your roles have been removed, including your **Verified** role.' },
+                                                { name: '🔄 Current Status', value: 'You now have the **Waiting for Verification** role.' },
+                                                { name: '📝 Next Steps', value: 'Please post a new intro in <#692965776545546261> to get verified again.' }
+                                            )
+                                            .setTimestamp();
+
+                                        await verificationHelpChannel.send({
+                                            content: `<@${messageAuthor.id}>`,
+                                            embeds: [fallbackEmbed]
+                                        });
+                                        console.log(`[MESSAGE DELETE] Sent notification to verification-help channel for ${messageAuthor.tag}`);
+                                    } catch (channelError) {
+                                        console.error(`[MESSAGE DELETE] Failed to send message to verification-help channel:`, channelError);
+                                    }
                                 }
                             }
+                        } catch (error) {
+                            console.error('[MESSAGE DELETE] Error managing roles:', error);
                         }
-                    } catch (error) {
-                        console.error('[MESSAGE DELETE] Error managing roles:', error);
                     }
                 }
             }
