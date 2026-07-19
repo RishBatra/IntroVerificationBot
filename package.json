@@ -12,6 +12,7 @@
   "dependencies": {
     "@discordjs/builders": "^1.8.2",
     "@discordjs/rest": "^2.3.0",
+    "@napi-rs/canvas": "^1.0.2",
     "@notionhq/client": "^2.2.15",
     "date-fns": "^3.6.0",
     "date-fns-tz": "^3.1.3",
