@@ -5,6 +5,7 @@ const { handleHoneypot } = require('../handlers/honeypotHandler');
 const StickyMessage = require('../models/stickymessage');
 const SelfiePost = require('../models/selfiePost');
 const UserActivity = require('../models/userActivity');
+const { clearSelfieCompliance } = require('../handlers/selfieComplianceHandler');
 
 // Constants for user activity tracking
 const ALLOWED_CATEGORY_IDS = [
@@ -175,6 +176,9 @@ module.exports = {
                                     new: true       // Return updated document
                                 }
                             );
+
+                            // Cancel any active grace/revoke window for this user
+                            await clearSelfieCompliance(message.guild.id, message.author.id, 'posted_selfie');
                             
                             console.log(`✅ Tracked static selfie by ${message.author.tag}`);
                         }

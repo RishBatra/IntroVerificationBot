@@ -5,6 +5,7 @@ const commandHandler = require('./handlers/commandHandler');
 const eventHandler = require('./handlers/eventHandler');
 const mongoose = require('mongoose');
 const { checkForReminders, handleExistingIntros } = require('./handlers/introManagementHandler');
+const { startSelfieComplianceSystem } = require('./handlers/selfieComplianceHandler');
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI, {
@@ -93,6 +94,9 @@ exec('node deploy-command.js', (error, stdout, stderr) => {
         // Start the reminder system - run every 1 minute for testing
         setInterval(checkForReminders, 1 * 60 * 1000); // Check every 1 minute for testing
         console.log('Intro reminder system started (checking every 1 minute)');
+
+        // Selfie compliance: 30-day scan, 24h DM warning, 48h auto-revoke
+        startSelfieComplianceSystem(client);
     });
 
     client.login(process.env.MY_DISCORD_BOT_TOKEN).catch(error => {

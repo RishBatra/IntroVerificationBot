@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { clearSelfieCompliance } = require('../handlers/selfieComplianceHandler');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -70,6 +71,7 @@ module.exports = {
 
                     // Remove the role
                     await member.roles.remove(roleId);
+                    await clearSelfieCompliance(interaction.guild.id, userId, 'manual_revoke');
 
                     // Send DM to user
                     try {
