@@ -70,7 +70,22 @@ module.exports = {
 
     async execute(interaction) {
         try {
-            const verifiedRole = interaction.guild.roles.cache.find(role => role.name === 'Verified');
+            // Prefer the known Verified role ID; fall back to name match
+            const VERIFIED_ROLE_ID = '692985789608362005';
+            const executor =
+                interaction.member ??
+                (await interaction.guild.members.fetch(interaction.user.id).catch(() => null));
+
+            if (!executor) {
+                return interaction.reply({
+                    content: '❌ Could not resolve your member profile.',
+                    ephemeral: true,
+                });
+            }
+
+            const verifiedRole =
+                interaction.guild.roles.cache.get(VERIFIED_ROLE_ID) ||
+                interaction.guild.roles.cache.find(role => role.name === 'Verified');
 
             if (!verifiedRole) {
                 return interaction.reply({
@@ -79,9 +94,9 @@ module.exports = {
                 });
             }
 
-            if (!interaction.member.roles.cache.has(verifiedRole.id)) {
+            if (!executor.roles.cache.has(verifiedRole.id)) {
                 return interaction.reply({
-                    content: '❌ You must be verified to view profile cards.',
+                    content: '❌ You must be verified to use this command.',
                     ephemeral: true,
                 });
             }
@@ -98,8 +113,9 @@ module.exports = {
             const targetUser = interaction.options.getUser('user') || interaction.user;
             const member =
                 interaction.options.getMember('user') ||
-                interaction.member ||
-                (await interaction.guild.members.fetch(targetUser.id).catch(() => null));
+                (targetUser.id === executor.id
+                    ? executor
+                    : await interaction.guild.members.fetch(targetUser.id).catch(() => null));
 
             const guildId = interaction.guild.id;
             const userId = targetUser.id;
