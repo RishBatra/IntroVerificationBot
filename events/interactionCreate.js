@@ -1,5 +1,6 @@
 const { Events } = require('discord.js');
 const { handleTicketCreation, handleTicketTypeSelection } = require('../handlers/ticketHandler');
+const { handleQueueButton } = require('../handlers/queueButtonHandler');
 const Ticket = require('../models/ticket');
 const requestAccessCommand = require('../commands/requestaccess');
 
@@ -40,7 +41,16 @@ module.exports = {
                 await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
             }
         } else if (interaction.isButton()) {
-            if (interaction.customId.startsWith('ticket_')) {
+            if (interaction.customId.startsWith('queue_')) {
+                try {
+                    await handleQueueButton(interaction);
+                } catch (error) {
+                    console.error('Error handling queue button:', error);
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({ content: 'Something went wrong with the queue. Try again.', ephemeral: true });
+                    }
+                }
+            } else if (interaction.customId.startsWith('ticket_')) {
                 await handleTicketCreation(interaction);
             } else {
                 await requestAccessCommand.buttonHandler(interaction);
