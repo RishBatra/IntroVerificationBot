@@ -8,6 +8,10 @@ module.exports = {
         .setDescription('See your position in every queue'),
 
     async execute(interaction) {
+        if (!queueManager.isVerifiedMember(interaction.member)) {
+            return interaction.reply({ content: queueManager.NOT_VERIFIED_MESSAGE, ephemeral: true });
+        }
+
         const queues = await Queue.find({ guildId: interaction.guild.id });
         if (queues.length === 0) {
             return interaction.reply({ content: 'No queues exist yet.', ephemeral: true });

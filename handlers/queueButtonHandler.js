@@ -10,13 +10,14 @@ async function handleQueueButton(interaction) {
         return interaction.reply({ content: 'This queue no longer exists.', ephemeral: true });
     }
 
-    if (action === 'queue_join') {
-        const result = await queueManager.joinQueue(interaction.client, queue, interaction.user.id);
-        return interaction.reply({ content: result.message, ephemeral: true });
-    }
+    if (action === 'queue_join' || action === 'queue_leave') {
+        if (!queueManager.isVerifiedMember(interaction.member)) {
+            return interaction.reply({ content: queueManager.NOT_VERIFIED_MESSAGE, ephemeral: true });
+        }
 
-    if (action === 'queue_leave') {
-        const result = await queueManager.leaveQueue(interaction.client, queue, interaction.user.id);
+        const result = action === 'queue_join'
+            ? await queueManager.joinQueue(interaction.client, queue, interaction.user.id)
+            : await queueManager.leaveQueue(interaction.client, queue, interaction.user.id);
         return interaction.reply({ content: result.message, ephemeral: true });
     }
 

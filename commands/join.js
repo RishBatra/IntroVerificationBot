@@ -12,6 +12,10 @@ module.exports = {
     },
 
     async execute(interaction) {
+        if (!queueManager.isVerifiedMember(interaction.member)) {
+            return interaction.reply({ content: queueManager.NOT_VERIFIED_MESSAGE, ephemeral: true });
+        }
+
         const { queue, error } = await queueManager.resolveQueue(interaction);
         if (error) {
             return interaction.reply({ content: error, ephemeral: true });

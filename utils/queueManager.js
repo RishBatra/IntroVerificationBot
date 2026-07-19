@@ -3,12 +3,21 @@ const Queue = require('../models/queue');
 const QueueMember = require('../models/queueMember');
 
 const ADMIN_ROLE_NAMES = ['Admins', 'Proud Guardians'];
+const VERIFIED_ROLE_NAME = 'Verified';
 const MAX_DISPLAYED_MEMBERS = 25;
 
 function isQueueAdmin(member) {
     if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
     return member.roles.cache.some(role => ADMIN_ROLE_NAMES.includes(role.name));
 }
+
+// Member commands (join/leave/positions) require the Verified role; admins bypass
+function isVerifiedMember(member) {
+    if (isQueueAdmin(member)) return true;
+    return member.roles.cache.some(role => role.name === VERIFIED_ROLE_NAME);
+}
+
+const NOT_VERIFIED_MESSAGE = 'Only verified members can use queues. Complete verification first!';
 
 function getSortedMembers(queueId) {
     return QueueMember.find({ queueId }).sort({ priority: -1, joinedAt: 1 });
@@ -209,6 +218,8 @@ function formatPullAnnouncement(queue, userId) {
 
 module.exports = {
     isQueueAdmin,
+    isVerifiedMember,
+    NOT_VERIFIED_MESSAGE,
     getSortedMembers,
     findQueue,
     resolveQueue,
