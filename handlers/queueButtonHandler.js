@@ -7,31 +7,34 @@ async function handleQueueButton(interaction) {
     const queue = await Queue.findById(queueId);
 
     if (!queue) {
-        return interaction.reply({ content: 'This queue no longer exists.', ephemeral: true });
+        return queueManager.embedReply(interaction, 'This queue no longer exists.', { color: 'error' });
     }
 
     if (action === 'queue_join' || action === 'queue_leave') {
         if (!queueManager.isVerifiedMember(interaction.member)) {
-            return interaction.reply({ content: queueManager.NOT_VERIFIED_MESSAGE, ephemeral: true });
+            return queueManager.embedReply(interaction, queueManager.NOT_VERIFIED_MESSAGE, { color: 'error' });
         }
 
         const result = action === 'queue_join'
             ? await queueManager.joinQueue(interaction.client, queue, interaction.user.id)
             : await queueManager.leaveQueue(interaction.client, queue, interaction.user.id);
-        return interaction.reply({ content: result.message, ephemeral: true });
+        return queueManager.embedReply(interaction, result.message, { color: result.ok ? 'success' : 'error' });
     }
 
     if (action === 'queue_pull') {
-        if (!queueManager.isQueueAdmin(interaction.member)) {
-            return interaction.reply({ content: 'Only admins can pull from the queue.', ephemeral: true });
+        if (!queueManager.canPull(interaction.member, queue)) {
+            const hint = queue.voiceChannelId
+                ? `You need to be an admin or in <#${queue.voiceChannelId}> to pull from **${queue.name}**.`
+                : `You need to be an admin to pull from **${queue.name}**.`;
+            return queueManager.embedReply(interaction, hint, { color: 'error' });
         }
 
         const member = await queueManager.pullNext(interaction.client, queue);
         if (!member) {
-            return interaction.reply({ content: `**${queue.name}** is empty.`, ephemeral: true });
+            return queueManager.embedReply(interaction, `**${queue.name}** is empty.`);
         }
 
-        return interaction.reply({ content: queueManager.formatPullAnnouncement(queue, member.userId) });
+        return interaction.reply(queueManager.buildPullAnnouncement(queue, [member.userId]));
     }
 }
 

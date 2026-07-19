@@ -13,16 +13,18 @@ module.exports = {
 
     async execute(interaction) {
         if (!queueManager.isQueueAdmin(interaction.member)) {
-            return interaction.reply({ content: 'You need to be an admin to post queue displays.', ephemeral: true });
+            return queueManager.embedReply(interaction, 'You need to be an admin to post queue displays.', { color: 'error' });
         }
 
         const { queue, error } = await queueManager.resolveQueue(interaction);
         if (error) {
-            return interaction.reply({ content: error, ephemeral: true });
+            return queueManager.embedReply(interaction, error, { color: 'error' });
         }
 
         await interaction.deferReply({ ephemeral: true });
         await queueManager.postDisplay(queue, interaction.channel);
-        return interaction.editReply({ content: `Live display for **${queue.name}** posted. It updates automatically as people join and leave.` });
+        return interaction.editReply({
+            embeds: [queueManager.makeEmbed(`Live display for **${queue.name}** posted. It updates automatically as people join and leave.`, { color: 'success' })],
+        });
     },
 };

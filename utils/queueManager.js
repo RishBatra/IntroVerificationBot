@@ -19,6 +19,30 @@ function isVerifiedMember(member) {
 
 const NOT_VERIFIED_MESSAGE = 'Only verified members can use queues. Complete verification first!';
 
+// Pulling is allowed for admins and anyone connected to the queue's linked voice channel
+function canPull(member, queue) {
+    if (isQueueAdmin(member)) return true;
+    return Boolean(queue.voiceChannelId && member.voice?.channelId === queue.voiceChannelId);
+}
+
+const COLORS = {
+    success: 0x2ecc71,
+    error: 0xe74c3c,
+    info: 0x9b59b6,
+};
+
+function makeEmbed(description, { color = 'info', title = null } = {}) {
+    const embed = new EmbedBuilder()
+        .setDescription(description)
+        .setColor(COLORS[color] ?? color);
+    if (title) embed.setTitle(title);
+    return embed;
+}
+
+function embedReply(interaction, description, { color = 'info', title = null, ephemeral = true } = {}) {
+    return interaction.reply({ embeds: [makeEmbed(description, { color, title })], ephemeral });
+}
+
 function getSortedMembers(queueId) {
     return QueueMember.find({ queueId }).sort({ priority: -1, joinedAt: 1 });
 }
@@ -71,6 +95,9 @@ async function buildDisplay(queue) {
 
     if (queue.lastPulledUserId) {
         embed.addFields({ name: 'Now up', value: `<@${queue.lastPulledUserId}>` });
+    }
+    if (queue.voiceChannelId) {
+        embed.addFields({ name: 'Voice channel', value: `🔊 <#${queue.voiceChannelId}>` });
     }
 
     const row = new ActionRowBuilder().addComponents(
@@ -209,17 +236,34 @@ async function pullNext(client, queue) {
     return next;
 }
 
-function formatPullAnnouncement(queue, userId) {
-    if (queue.pullMessage) {
-        return queue.pullMessage.replaceAll('{user}', `<@${userId}>`);
+// Builds the public pull announcement. Mentions go in `content` (mentions
+// inside embeds don't trigger a ping), the pretty part is the embed.
+function buildPullAnnouncement(queue, userIds) {
+    const lines = userIds.map(userId =>
+        queue.pullMessage
+            ? queue.pullMessage.replaceAll('{user}', `<@${userId}>`)
+            : `You're up, <@${userId}>!`
+    );
+
+    const embed = new EmbedBuilder()
+        .setTitle(`🎤 ${queue.name} — Next up!`)
+        .setDescription(lines.join('\n'))
+        .setColor(COLORS.info)
+        .setTimestamp();
+    if (queue.rotation) {
+        embed.setFooter({ text: "You'll rejoin at the back of the line after your turn" });
     }
-    return `🎤 You're up, <@${userId}>! (**${queue.name}**)`;
+
+    return { content: userIds.map(id => `<@${id}>`).join(' '), embeds: [embed] };
 }
 
 module.exports = {
     isQueueAdmin,
     isVerifiedMember,
+    canPull,
     NOT_VERIFIED_MESSAGE,
+    makeEmbed,
+    embedReply,
     getSortedMembers,
     findQueue,
     resolveQueue,
@@ -231,5 +275,5 @@ module.exports = {
     joinQueue,
     leaveQueue,
     pullNext,
-    formatPullAnnouncement,
+    buildPullAnnouncement,
 };

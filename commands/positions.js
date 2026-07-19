@@ -9,12 +9,12 @@ module.exports = {
 
     async execute(interaction) {
         if (!queueManager.isVerifiedMember(interaction.member)) {
-            return interaction.reply({ content: queueManager.NOT_VERIFIED_MESSAGE, ephemeral: true });
+            return queueManager.embedReply(interaction, queueManager.NOT_VERIFIED_MESSAGE, { color: 'error' });
         }
 
         const queues = await Queue.find({ guildId: interaction.guild.id });
         if (queues.length === 0) {
-            return interaction.reply({ content: 'No queues exist yet.', ephemeral: true });
+            return queueManager.embedReply(interaction, 'No queues exist yet.');
         }
 
         const lines = [];
@@ -27,9 +27,9 @@ module.exports = {
         }
 
         if (lines.length === 0) {
-            return interaction.reply({ content: "You're not in any queues.", ephemeral: true });
+            return queueManager.embedReply(interaction, "You're not in any queues.");
         }
 
-        return interaction.reply({ content: lines.join('\n'), ephemeral: true });
+        return queueManager.embedReply(interaction, lines.join('\n'), { title: '📍 Your positions' });
     },
 };

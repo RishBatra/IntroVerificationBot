@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, ChannelType } = require('discord.js');
 const Queue = require('../models/queue');
 const QueueMember = require('../models/queueMember');
 const queueManager = require('../utils/queueManager');
@@ -12,7 +12,8 @@ module.exports = {
                 .setDescription('Create a new queue')
                 .addStringOption(opt => opt.setName('name').setDescription('Queue name').setRequired(true))
                 .addBooleanOption(opt => opt.setName('rotation').setDescription('Karaoke rotation: pulled members rejoin at the back (default: true)'))
-                .addIntegerOption(opt => opt.setName('size').setDescription('Max queue size').setMinValue(1)))
+                .addIntegerOption(opt => opt.setName('size').setDescription('Max queue size').setMinValue(1))
+                .addChannelOption(opt => opt.setName('voice_channel').setDescription('Voice channel whose members can pull').addChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice)))
         .addSubcommand(sub =>
             sub.setName('delete')
                 .setDescription('Delete a queue')
@@ -27,7 +28,8 @@ module.exports = {
                 .addBooleanOption(opt => opt.setName('rotation').setDescription('Karaoke rotation on/off'))
                 .addBooleanOption(opt => opt.setName('locked').setDescription('Lock/unlock joining'))
                 .addIntegerOption(opt => opt.setName('size').setDescription('Max queue size (0 = unlimited)').setMinValue(0))
-                .addStringOption(opt => opt.setName('pull_message').setDescription('Announcement when someone is pulled. Use {user} for the mention.'))),
+                .addStringOption(opt => opt.setName('pull_message').setDescription('Announcement when someone is pulled. Use {user} for the mention.'))
+                .addChannelOption(opt => opt.setName('voice_channel').setDescription('Voice channel whose members can pull').addChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice))),
 
     async autocomplete(interaction) {
         await queueManager.queueNameAutocomplete(interaction);
@@ -35,7 +37,7 @@ module.exports = {
 
     async execute(interaction) {
         if (!queueManager.isQueueAdmin(interaction.member)) {
-            return interaction.reply({ content: 'You need to be an admin to manage queues.', ephemeral: true });
+            return queueManager.embedReply(interaction, 'You need to be an admin to manage queues.', { color: 'error' });
         }
 
         const sub = interaction.options.getSubcommand();
@@ -45,10 +47,11 @@ module.exports = {
             const name = interaction.options.getString('name').trim();
             const rotation = interaction.options.getBoolean('rotation') ?? true;
             const size = interaction.options.getInteger('size');
+            const voiceChannel = interaction.options.getChannel('voice_channel');
 
             const existing = await Queue.findOne({ guildId, name });
             if (existing) {
-                return interaction.reply({ content: `A queue named **${name}** already exists.`, ephemeral: true });
+                return queueManager.embedReply(interaction, `A queue named **${name}** already exists.`, { color: 'error' });
             }
 
             await Queue.create({
@@ -56,20 +59,24 @@ module.exports = {
                 name,
                 rotation,
                 size: size || null,
+                voiceChannelId: voiceChannel?.id || null,
                 createdBy: interaction.user.id,
             });
 
-            return interaction.reply({
-                content: `Queue **${name}** created${rotation ? ' with karaoke rotation on' : ''}. Use \`/show queue:${name}\` in a channel to post the live display.`,
-                ephemeral: true,
-            });
+            const details = [
+                `Queue **${name}** created${rotation ? ' with karaoke rotation on' : ''}.`,
+                voiceChannel ? `Members in ${voiceChannel} can pull the next singer.` : null,
+                `Use \`/show queue:${name}\` in a channel to post the live display.`,
+            ].filter(Boolean).join('\n');
+
+            return queueManager.embedReply(interaction, details, { color: 'success', title: '✅ Queue created' });
         }
 
         if (sub === 'delete') {
             const name = interaction.options.getString('name');
             const queue = await Queue.findOne({ guildId, name });
             if (!queue) {
-                return interaction.reply({ content: `No queue named **${name}** found.`, ephemeral: true });
+                return queueManager.embedReply(interaction, `No queue named **${name}** found.`, { color: 'error' });
             }
 
             // Remove the live display message if it exists
@@ -86,13 +93,13 @@ module.exports = {
             await QueueMember.deleteMany({ queueId: queue._id });
             await Queue.deleteOne({ _id: queue._id });
 
-            return interaction.reply({ content: `Queue **${name}** deleted.`, ephemeral: true });
+            return queueManager.embedReply(interaction, `Queue **${name}** deleted.`, { color: 'success' });
         }
 
         if (sub === 'list') {
             const queues = await Queue.find({ guildId });
             if (queues.length === 0) {
-                return interaction.reply({ content: 'No queues exist yet. Create one with `/queues add`.', ephemeral: true });
+                return queueManager.embedReply(interaction, 'No queues exist yet. Create one with `/queues add`.');
             }
 
             const counts = await QueueMember.aggregate([
@@ -105,39 +112,42 @@ module.exports = {
                 const parts = [`**${q.name}** — ${countMap.get(String(q._id)) || 0} member(s)`];
                 if (q.rotation) parts.push('rotation');
                 if (q.size) parts.push(`max ${q.size}`);
+                if (q.voiceChannelId) parts.push(`🔊 <#${q.voiceChannelId}>`);
                 if (q.locked) parts.push('🔒 locked');
                 return parts.join(' • ');
             });
 
-            return interaction.reply({ content: lines.join('\n'), ephemeral: true });
+            return queueManager.embedReply(interaction, lines.join('\n'), { title: '📋 Queues' });
         }
 
         if (sub === 'set') {
             const name = interaction.options.getString('name');
             const queue = await Queue.findOne({ guildId, name });
             if (!queue) {
-                return interaction.reply({ content: `No queue named **${name}** found.`, ephemeral: true });
+                return queueManager.embedReply(interaction, `No queue named **${name}** found.`, { color: 'error' });
             }
 
             const rotation = interaction.options.getBoolean('rotation');
             const locked = interaction.options.getBoolean('locked');
             const size = interaction.options.getInteger('size');
             const pullMessage = interaction.options.getString('pull_message');
+            const voiceChannel = interaction.options.getChannel('voice_channel');
 
             const changes = [];
             if (rotation !== null) { queue.rotation = rotation; changes.push(`rotation ${rotation ? 'on' : 'off'}`); }
             if (locked !== null) { queue.locked = locked; changes.push(locked ? 'locked' : 'unlocked'); }
             if (size !== null) { queue.size = size === 0 ? null : size; changes.push(size === 0 ? 'size unlimited' : `size ${size}`); }
             if (pullMessage !== null) { queue.pullMessage = pullMessage; changes.push('pull message updated'); }
+            if (voiceChannel !== null) { queue.voiceChannelId = voiceChannel.id; changes.push(`voice channel ${voiceChannel}`); }
 
             if (changes.length === 0) {
-                return interaction.reply({ content: 'Nothing to change — pass at least one setting.', ephemeral: true });
+                return queueManager.embedReply(interaction, 'Nothing to change — pass at least one setting.', { color: 'error' });
             }
 
             await queue.save();
             queueManager.scheduleDisplayRefresh(interaction.client, queue._id);
 
-            return interaction.reply({ content: `Queue **${name}** updated: ${changes.join(', ')}.`, ephemeral: true });
+            return queueManager.embedReply(interaction, `Queue **${name}** updated: ${changes.join(', ')}.`, { color: 'success' });
         }
     },
 };

@@ -13,13 +13,16 @@ module.exports = {
     },
 
     async execute(interaction) {
-        if (!queueManager.isQueueAdmin(interaction.member)) {
-            return interaction.reply({ content: 'You need to be an admin to pull from queues.', ephemeral: true });
-        }
-
         const { queue, error } = await queueManager.resolveQueue(interaction);
         if (error) {
-            return interaction.reply({ content: error, ephemeral: true });
+            return queueManager.embedReply(interaction, error, { color: 'error' });
+        }
+
+        if (!queueManager.canPull(interaction.member, queue)) {
+            const hint = queue.voiceChannelId
+                ? `You need to be an admin or in <#${queue.voiceChannelId}> to pull from **${queue.name}**.`
+                : `You need to be an admin to pull from **${queue.name}**.`;
+            return queueManager.embedReply(interaction, hint, { color: 'error' });
         }
 
         const count = interaction.options.getInteger('count') || 1;
@@ -31,10 +34,9 @@ module.exports = {
         }
 
         if (pulled.length === 0) {
-            return interaction.reply({ content: `**${queue.name}** is empty.`, ephemeral: true });
+            return queueManager.embedReply(interaction, `**${queue.name}** is empty.`);
         }
 
-        const announcements = pulled.map(m => queueManager.formatPullAnnouncement(queue, m.userId));
-        return interaction.reply({ content: announcements.join('\n') });
+        return interaction.reply(queueManager.buildPullAnnouncement(queue, pulled.map(m => m.userId)));
     },
 };

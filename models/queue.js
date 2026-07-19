@@ -10,6 +10,8 @@ const queueSchema = new mongoose.Schema({
     size: { type: Number, default: null },
     // Karaoke rotation: pulled members are re-added to the back instead of removed
     rotation: { type: Boolean, default: false },
+    // Linked voice channel: members connected to it may pull (in addition to admins)
+    voiceChannelId: { type: String, default: null },
     // Message template sent when a member is pulled. {user} is replaced with a mention.
     pullMessage: { type: String, default: null },
     // Last member pulled (shown as "Now up" on the display)

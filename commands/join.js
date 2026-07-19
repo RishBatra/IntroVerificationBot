@@ -13,15 +13,15 @@ module.exports = {
 
     async execute(interaction) {
         if (!queueManager.isVerifiedMember(interaction.member)) {
-            return interaction.reply({ content: queueManager.NOT_VERIFIED_MESSAGE, ephemeral: true });
+            return queueManager.embedReply(interaction, queueManager.NOT_VERIFIED_MESSAGE, { color: 'error' });
         }
 
         const { queue, error } = await queueManager.resolveQueue(interaction);
         if (error) {
-            return interaction.reply({ content: error, ephemeral: true });
+            return queueManager.embedReply(interaction, error, { color: 'error' });
         }
 
         const result = await queueManager.joinQueue(interaction.client, queue, interaction.user.id);
-        return interaction.reply({ content: result.message, ephemeral: true });
+        return queueManager.embedReply(interaction, result.message, { color: result.ok ? 'success' : 'error' });
     },
 };
