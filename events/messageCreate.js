@@ -6,6 +6,7 @@ const StickyMessage = require('../models/stickymessage');
 const SelfiePost = require('../models/selfiePost');
 const UserActivity = require('../models/userActivity');
 const { clearSelfieCompliance } = require('../handlers/selfieComplianceHandler');
+const { handleStickyDisplay } = require('../utils/queueManager');
 
 // Constants for user activity tracking
 const ALLOWED_CATEGORY_IDS = [
@@ -217,6 +218,13 @@ module.exports = {
                 }
             } catch (error) {
                 console.error('Error handling sticky message:', error);
+            }
+
+            // Keep queue displays stuck to the bottom of their channel
+            try {
+                await handleStickyDisplay(message);
+            } catch (error) {
+                console.error('Error handling sticky queue display:', error);
             }
 
             // Add any other guild-specific message handling here

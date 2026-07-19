@@ -216,6 +216,32 @@ async function leaveQueue(client, queue, userId) {
     return { ok: true, message: `You left **${queue.name}**.` };
 }
 
+// Sticky behavior: when someone chats in a channel that has a live queue
+// display, re-post the display at the bottom. Throttled per channel so
+// busy chat doesn't cause a delete/send storm.
+const STICKY_REPOST_DELAY_MS = 3000;
+const pendingStickyReposts = new Map();
+
+async function handleStickyDisplay(message) {
+    const channelId = message.channel.id;
+    if (pendingStickyReposts.has(channelId)) return;
+
+    const hasDisplay = await Queue.exists({ displayChannelId: channelId, displayMessageId: { $ne: null } });
+    if (!hasDisplay) return;
+
+    pendingStickyReposts.set(channelId, setTimeout(async () => {
+        pendingStickyReposts.delete(channelId);
+        try {
+            const queues = await Queue.find({ displayChannelId: channelId, displayMessageId: { $ne: null } });
+            for (const queue of queues) {
+                await postDisplay(queue, message.channel);
+            }
+        } catch (error) {
+            console.error(`Error re-sticking queue display in channel ${channelId}:`, error);
+        }
+    }, STICKY_REPOST_DELAY_MS));
+}
+
 // Pulls the next member. In rotation mode (karaoke) they rejoin at the back.
 // Returns the pulled member doc or null if the queue is empty.
 async function pullNext(client, queue) {
@@ -272,6 +298,7 @@ module.exports = {
     scheduleDisplayRefresh,
     refreshDisplay,
     postDisplay,
+    handleStickyDisplay,
     joinQueue,
     leaveQueue,
     pullNext,
