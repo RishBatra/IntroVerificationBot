@@ -66,7 +66,7 @@ module.exports = {
             const details = [
                 `Queue **${name}** created${rotation ? ' with karaoke rotation on' : ''}.`,
                 voiceChannel ? `Members in ${voiceChannel} can pull the next singer.` : null,
-                `Use \`/show queue:${name}\` in a channel to post the live display.`,
+                `Use \`/displays queue:${name}\` in a channel to post the live display.`,
             ].filter(Boolean).join('\n');
 
             return queueManager.embedReply(interaction, details, { color: 'success', title: '✅ Queue created' });
