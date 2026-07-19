@@ -133,6 +133,12 @@ module.exports = {
                 ]);
             } catch (error) {
                 console.error('[profile] Tatsu API error:', error);
+                if (error.status === 401) {
+                    return interaction.editReply({
+                        content:
+                            '❌ Tatsu rejected the API key (401). Set a valid `TATSU_API_KEY` on the host — create one with `t!apikey create`, paste it with no quotes, then restart the bot.',
+                    });
+                }
                 return interaction.editReply({
                     content:
                         '❌ Could not fetch Tatsu data. Check the API key and that the key owner is in this server.',
