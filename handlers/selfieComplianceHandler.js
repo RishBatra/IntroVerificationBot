@@ -58,36 +58,24 @@ function buildPublicWarningEmbed(guild, members, selfiesChannel) {
     const embed = new EmbedBuilder()
         .setColor(COLORS.warning)
         .setAuthor({
-            name: 'Photo Verification • Activity Reminder',
+            name: 'Photo Verification • Reminder',
             iconURL: guildIcon(guild)
         })
-        .setTitle('Time to post a selfie')
+        .setTitle('Reminder: post in selfies')
         .setDescription(
-            `Members with **${PHOTO_VERIFIED_ROLE_NAME}** need to post in ${channelRef} at least once every **30 days**.\n\n` +
-            `Please upload a **static image** (JPG/PNG — **no GIFs**).`
+            `Hey! Members with **${PHOTO_VERIFIED_ROLE_NAME}** should post a selfie in ${channelRef} at least once every **30 days**.\n\n` +
+            `If that's you, please drop one soon so you can keep access.`
         )
-        .addFields(
-            {
-                name: 'Grace timeline',
-                value: [
-                    '🟠 **Now** — public reminder',
-                    '📩 **+24 hours** — personal DM if still inactive',
-                    '🚫 **+48 hours** — Photo Verified auto-revoked'
-                ].join('\n'),
-                inline: false
-            },
-            {
-                name: `Members who still need to post (${members.length})`,
-                value: mentionChunks[0]
-            }
-        )
-        .setThumbnail(guildIcon(guild))
+        .addFields({
+            name: `Still need to post (${members.length})`,
+            value: mentionChunks[0]
+        })
         .setTimestamp()
-        .setFooter(brandFooter(guild, 'Selfie compliance'));
+        .setFooter(brandFooter(guild, 'Photo verification'));
 
     for (let i = 1; i < mentionChunks.length; i++) {
         embed.addFields({
-            name: 'Members (continued)',
+            name: 'Still need to post (continued)',
             value: mentionChunks[i]
         });
     }
@@ -169,31 +157,13 @@ function buildDmWarningEmbed(guild, hoursLeft) {
             name: `${guild.name} • Photo Verification`,
             iconURL: guildIcon(guild)
         })
-        .setTitle('Final reminder — post a selfie')
+        .setTitle('Reminder — post a selfie')
         .setDescription(
-            `A public reminder was posted in ${channelRef}, and you still haven't posted.\n\n` +
-            `Your **${PHOTO_VERIFIED_ROLE_NAME}** access is at risk.`
+            `You still need to post a selfie in ${channelRef}.\n\n` +
+            `Please post one within the next **${hoursLeft} hour${hoursLeft === 1 ? '' : 's'}** to keep your **${PHOTO_VERIFIED_ROLE_NAME}** access.`
         )
-        .addFields(
-            {
-                name: 'What to do',
-                value: `Upload a **static image** (JPG/PNG — not a GIF) in ${channelRef}.`,
-                inline: false
-            },
-            {
-                name: 'Time remaining',
-                value: `**${hoursLeft} hour${hoursLeft === 1 ? '' : 's'}** until auto-revoke`,
-                inline: true
-            },
-            {
-                name: 'Requirement',
-                value: '1 selfie every 30 days',
-                inline: true
-            }
-        )
-        .setThumbnail(guildIcon(guild))
         .setTimestamp()
-        .setFooter(brandFooter(guild, 'Selfie compliance'));
+        .setFooter(brandFooter(guild, 'Photo verification'));
 }
 
 function buildDmSentStaffEmbed(guild, member, hoursLeft, dmOk) {
@@ -240,23 +210,11 @@ function buildRevokeDmEmbed(guild) {
         })
         .setTitle('Photo verification revoked')
         .setDescription(
-            `Your **${PHOTO_VERIFIED_ROLE_NAME}** role was removed because no selfie was posted during the grace period.`
+            `Your **${PHOTO_VERIFIED_ROLE_NAME}** role was removed due to inactivity in #${SELFIES_CHANNEL_NAME}.\n\n` +
+            `If you want it back, open a ticket and send a screenshot of this message.`
         )
-        .addFields(
-            {
-                name: 'Why?',
-                value: `Photo Verified members must post a **static selfie** in #${SELFIES_CHANNEL_NAME} at least once every **30 days**.`,
-                inline: false
-            },
-            {
-                name: 'Want it back?',
-                value: 'Open a ticket and send a screenshot of this message.',
-                inline: false
-            }
-        )
-        .setThumbnail(guildIcon(guild))
         .setTimestamp()
-        .setFooter(brandFooter(guild, 'Selfie compliance'));
+        .setFooter(brandFooter(guild, 'Photo verification'));
 }
 
 function buildRevokeStaffEmbed(guild, member, dmOk) {
