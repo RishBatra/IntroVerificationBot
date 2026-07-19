@@ -3,12 +3,12 @@ const VoiceSession = require('../models/voiceSession');
 const { getUserProfile, getMemberRanking, getGuildRankings } = require('../utils/tatsuClient');
 const { buildProfileCard } = require('../utils/profileCard');
 
-// Pronoun role IDs from this server (see audit.js)
-const SPECIFIC_PRONOUN_ROLE_IDS = new Set([
+// Pronoun role IDs from this server (see audit.js) — array preserves display order
+const SPECIFIC_PRONOUN_ROLE_IDS = [
     '692960596844478465', // He/Him
     '692960617614540801', // She/Her
     '692960634786152468', // They/Them
-]);
+];
 const ASK_PRONOUN_ROLE_ID = '886563278191464478'; // Ask for Pronouns
 
 async function getVoiceHours(guildId, userId) {
@@ -66,14 +66,21 @@ async function getVCStreak(guildId, userId) {
 }
 
 /**
- * Specific pronoun roles win over Ask. No role -> null (name line shows username only).
- * Display uses the role name as written, except Ask -> "ask".
+ * Specific pronoun roles win over Ask. No role -> null (subtitle falls back to title).
+ * One role -> shown as written (e.g. "He/Him"). Multiple roles -> first segments
+ * merged in role order (e.g. He/Him + They/Them -> "He/They").
  */
 function getPronounDisplay(member) {
     if (!member?.roles?.cache) return null;
 
-    const specificRole = member.roles.cache.find(role => SPECIFIC_PRONOUN_ROLE_IDS.has(role.id));
-    if (specificRole) return specificRole.name;
+    const specificRoles = SPECIFIC_PRONOUN_ROLE_IDS
+        .map(id => member.roles.cache.get(id))
+        .filter(Boolean);
+
+    if (specificRoles.length === 1) return specificRoles[0].name;
+    if (specificRoles.length > 1) {
+        return specificRoles.map(role => role.name.split('/')[0]).join('/');
+    }
 
     if (member.roles.cache.has(ASK_PRONOUN_ROLE_ID)) return 'ask';
 

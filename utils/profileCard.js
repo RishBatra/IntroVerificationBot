@@ -1,4 +1,23 @@
+const path = require('path');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
+
+const BACKGROUND_PATH = path.join(__dirname, '../assets/profile-bg.png');
+let backgroundImagePromise = null;
+
+function getBackgroundImage() {
+    if (!backgroundImagePromise) {
+        backgroundImagePromise = loadImage(BACKGROUND_PATH).catch(() => null);
+    }
+    return backgroundImagePromise;
+}
+
+// Scale the image to fully cover the canvas, cropping overflow evenly
+function drawCover(ctx, image, width, height) {
+    const scale = Math.max(width / image.width, height / image.height);
+    const drawW = image.width * scale;
+    const drawH = image.height * scale;
+    ctx.drawImage(image, (width - drawW) / 2, (height - drawH) / 2, drawW, drawH);
+}
 
 function roundRect(ctx, x, y, width, height, radius) {
     const r = Math.min(radius, width / 2, height / 2);
@@ -32,9 +51,12 @@ function formatNumber(n) {
     return Number(n || 0).toLocaleString('en-US');
 }
 
-function buildNameLine(username, pronounDisplay) {
-    if (pronounDisplay) return `${username} · ${pronounDisplay}`;
-    return username || 'Unknown';
+function buildSubtitle(pronounDisplay, title) {
+    const cleanTitle = title && String(title).trim() ? String(title).trim() : null;
+    if (pronounDisplay && cleanTitle) return `${pronounDisplay} · ${cleanTitle}`;
+    if (pronounDisplay) return pronounDisplay;
+    if (cleanTitle) return cleanTitle;
+    return 'No title yet';
 }
 
 function buildProgressPill({ rank, pointsRemaining, nextRank }) {
@@ -75,29 +97,31 @@ async function buildProfileCard({
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
-    // Background gradient
-    const bg = ctx.createLinearGradient(0, 0, width, height);
-    bg.addColorStop(0, '#1a1030');
-    bg.addColorStop(0.45, '#24143f');
-    bg.addColorStop(1, '#0d1b2a');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, width, height);
-
-    // Soft accent glows
-    const glow1 = ctx.createRadialGradient(160, 80, 10, 160, 80, 220);
-    glow1.addColorStop(0, 'rgba(236, 72, 153, 0.35)');
-    glow1.addColorStop(1, 'rgba(236, 72, 153, 0)');
-    ctx.fillStyle = glow1;
-    ctx.fillRect(0, 0, width, height);
-
-    const glow2 = ctx.createRadialGradient(720, 220, 10, 720, 220, 260);
-    glow2.addColorStop(0, 'rgba(56, 189, 248, 0.28)');
-    glow2.addColorStop(1, 'rgba(56, 189, 248, 0)');
-    ctx.fillStyle = glow2;
-    ctx.fillRect(0, 0, width, height);
+    // Background: server ribbon artwork, falling back to a plain gradient
+    const backgroundImage = await getBackgroundImage();
+    if (backgroundImage) {
+        drawCover(ctx, backgroundImage, width, height);
+        // Dark scrim so text stays readable — heavier on the text-dense left,
+        // lighter on the right so the ribbon colours show through
+        const scrim = ctx.createLinearGradient(0, 0, width, 0);
+        scrim.addColorStop(0, 'rgba(8, 8, 18, 0.62)');
+        scrim.addColorStop(0.55, 'rgba(8, 8, 18, 0.50)');
+        scrim.addColorStop(1, 'rgba(8, 8, 18, 0.32)');
+        ctx.fillStyle = scrim;
+        ctx.fillRect(0, 0, width, height);
+    } else {
+        const bg = ctx.createLinearGradient(0, 0, width, height);
+        bg.addColorStop(0, '#1a1030');
+        bg.addColorStop(0.45, '#24143f');
+        bg.addColorStop(1, '#0d1b2a');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, width, height);
+    }
 
     // Left panel
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
+    ctx.fillStyle = 'rgba(10, 10, 20, 0.45)';
+    ctx.fillRect(0, 0, 190, height);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.fillRect(0, 0, 190, height);
 
     // Avatar
@@ -117,24 +141,36 @@ async function buildProfileCard({
         ctx.fill();
     }
 
-    // Name line: {username} or {username} · {pronouns}
-    const nameLine = buildNameLine(username, pronounDisplay);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 36px Arial';
-    ctx.fillText(truncate(ctx, nameLine, 520), 220, 68);
+    // Member since: below the avatar in the left panel (two lines to fit)
+    const memberSince = formatMemberSince(joinedAt);
+    if (memberSince) {
+        const [label, value] = ['Member since', memberSince.replace('Member since ', '')];
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.font = '17px Arial';
+        ctx.fillText(label, (190 - ctx.measureText(label).width) / 2, 190);
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.font = 'bold 19px Arial';
+        ctx.fillText(value, (190 - ctx.measureText(value).width) / 2, 216);
+    }
 
-    // Subtitle (title)
-    const titleText = title && String(title).trim() ? String(title).trim() : 'No title yet';
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.font = '22px Arial';
-    ctx.fillText(truncate(ctx, titleText, 520), 220, 102);
-
-    // Rank
+    // Rank (drawn first so the name can shrink around it)
     const rankLabel = rank ? `#${rank}` : '#—';
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 56px Arial';
     const rankWidth = ctx.measureText(rankLabel).width;
     ctx.fillText(rankLabel, width - rankWidth - 36, 72);
+
+    // Name line: username only, never overlapping the rank
+    const nameMaxWidth = width - 36 - rankWidth - 24 - 220;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 36px Arial';
+    ctx.fillText(truncate(ctx, username || 'Unknown', nameMaxWidth), 220, 68);
+
+    // Subtitle: pronouns · title (pronouns take the old title slot)
+    const subtitle = buildSubtitle(pronounDisplay, title);
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.font = '22px Arial';
+    ctx.fillText(truncate(ctx, subtitle, 520), 220, 102);
 
     // Progress pill
     const barX = 220;
@@ -179,20 +215,12 @@ async function buildProfileCard({
         chipX += chipW + 12;
     }
 
-    // Footer: Member since {Month YYYY}
-    const memberSince = formatMemberSince(joinedAt);
-    if (memberSince) {
-        ctx.fillStyle = 'rgba(255,255,255,0.45)';
-        ctx.font = '16px Arial';
-        ctx.fillText(memberSince, 220, height - 18);
-    }
-
     return Buffer.from(await canvas.encode('png'));
 }
 
 module.exports = {
     buildProfileCard,
-    buildNameLine,
+    buildSubtitle,
     buildProgressPill,
     formatMemberSince,
 };
