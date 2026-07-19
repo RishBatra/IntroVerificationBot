@@ -32,19 +32,43 @@ function formatNumber(n) {
     return Number(n || 0).toLocaleString('en-US');
 }
 
+function buildNameLine(username, pronounDisplay) {
+    if (pronounDisplay) return `${username} · ${pronounDisplay}`;
+    return username || 'Unknown';
+}
+
+function buildProgressPill({ rank, pointsRemaining, nextRank }) {
+    if (!rank) return 'Unranked';
+    if (rank === 1) return 'Top of the server';
+    if (nextRank == null || pointsRemaining == null) return `Rank #${rank}`;
+    return `${formatNumber(pointsRemaining)} pts to rank #${nextRank}`;
+}
+
+function formatMemberSince(joinedAt) {
+    if (!joinedAt) return null;
+    const date = joinedAt instanceof Date ? joinedAt : new Date(joinedAt);
+    if (Number.isNaN(date.getTime())) return null;
+    const month = date.toLocaleString('en-US', { month: 'short' });
+    const year = date.getFullYear();
+    return `Member since ${month} ${year}`;
+}
+
 /**
- * Build a Tatsu-style profile card combining Tatsu + VC stats.
+ * Build a member rank card from prepared content fields.
  * @returns {Promise<Buffer>}
  */
 async function buildProfileCard({
     avatarUrl,
     username,
+    pronounDisplay,
     title,
     rank,
+    pointsRemaining,
+    nextRank,
     score,
-    reputation,
     vcHours,
     vcStreak,
+    joinedAt,
 }) {
     const width = 900;
     const height = 300;
@@ -93,26 +117,17 @@ async function buildProfileCard({
         ctx.fill();
     }
 
-    // Reputation pill
-    const repText = `+${formatNumber(reputation)} rep`;
-    ctx.font = 'bold 20px Arial';
-    const repWidth = Math.max(120, ctx.measureText(repText).width + 28);
-    const repX = (190 - repWidth) / 2;
-    const repY = 175;
-    ctx.fillStyle = 'rgba(125, 211, 252, 0.35)';
-    roundRect(ctx, repX, repY, repWidth, 36, 18);
-    ctx.fill();
+    // Name line: {username} or {username} · {pronouns}
+    const nameLine = buildNameLine(username, pronounDisplay);
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(repText, repX + 14, repY + 25);
+    ctx.font = 'bold 36px Arial';
+    ctx.fillText(truncate(ctx, nameLine, 520), 220, 68);
 
-    // Username + title
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 40px Arial';
-    ctx.fillText(truncate(ctx, username || 'Unknown', 520), 220, 68);
-
+    // Subtitle (title)
+    const titleText = title && String(title).trim() ? String(title).trim() : 'No title yet';
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
     ctx.font = '22px Arial';
-    ctx.fillText(truncate(ctx, title || 'No title set', 520), 220, 102);
+    ctx.fillText(truncate(ctx, titleText, 520), 220, 102);
 
     // Rank
     const rankLabel = rank ? `#${rank}` : '#—';
@@ -121,7 +136,7 @@ async function buildProfileCard({
     const rankWidth = ctx.measureText(rankLabel).width;
     ctx.fillText(rankLabel, width - rankWidth - 36, 72);
 
-    // Progress / status bar
+    // Progress pill
     const barX = 220;
     const barY = 130;
     const barW = 640;
@@ -132,27 +147,25 @@ async function buildProfileCard({
 
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 18px Arial';
-    const barLabel = rank
-        ? `Server rank #${rank} · Tatsu + Voice activity`
-        : 'Tatsu + Voice activity';
+    const barLabel = buildProgressPill({ rank, pointsRemaining, nextRank });
     const barLabelWidth = ctx.measureText(barLabel).width;
     ctx.fillText(barLabel, barX + (barW - barLabelWidth) / 2, barY + 25);
 
-    // Stats row
+    // Activity Score
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
     ctx.font = '20px Arial';
-    ctx.fillText('Server Score', 220, 205);
+    ctx.fillText('Activity Score', 220, 205);
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 28px Arial';
     const scoreText = formatNumber(score);
     ctx.fillText(scoreText, width - 36 - ctx.measureText(scoreText).width, 208);
 
-    // Bottom chips: VC hours + streak
+    // Badges: voice time + streak (hide streak when 0)
     const chipY = 235;
-    const chips = [
-        `VC ${Number(vcHours || 0).toFixed(1)}h`,
-        vcStreak > 0 ? `Streak ${vcStreak}d` : 'No streak',
-    ];
+    const chips = [`${Number(vcHours || 0).toFixed(1)}h voice time`];
+    if (vcStreak > 0) {
+        chips.push(`${vcStreak}-day voice streak`);
+    }
 
     let chipX = 220;
     for (const chip of chips) {
@@ -166,12 +179,20 @@ async function buildProfileCard({
         chipX += chipW + 12;
     }
 
-    // Footer brand
-    ctx.fillStyle = 'rgba(255,255,255,0.45)';
-    ctx.font = '16px Arial';
-    ctx.fillText('Profile · Tatsu + VC', width - 170, height - 18);
+    // Footer: Member since {Month YYYY}
+    const memberSince = formatMemberSince(joinedAt);
+    if (memberSince) {
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.font = '16px Arial';
+        ctx.fillText(memberSince, 220, height - 18);
+    }
 
     return Buffer.from(await canvas.encode('png'));
 }
 
-module.exports = { buildProfileCard };
+module.exports = {
+    buildProfileCard,
+    buildNameLine,
+    buildProgressPill,
+    formatMemberSince,
+};

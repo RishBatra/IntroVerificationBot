@@ -1,7 +1,15 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const VoiceSession = require('../models/voiceSession');
-const { getUserProfile, getMemberRanking } = require('../utils/tatsuClient');
+const { getUserProfile, getMemberRanking, getGuildRankings } = require('../utils/tatsuClient');
 const { buildProfileCard } = require('../utils/profileCard');
+
+// Pronoun role IDs from this server (see audit.js)
+const SPECIFIC_PRONOUN_ROLE_IDS = new Set([
+    '692960596844478465', // He/Him
+    '692960617614540801', // She/Her
+    '692960634786152468', // They/Them
+]);
+const ASK_PRONOUN_ROLE_ID = '886563278191464478'; // Ask for Pronouns
 
 async function getVoiceHours(guildId, userId) {
     try {
@@ -54,6 +62,53 @@ async function getVCStreak(guildId, userId) {
     } catch (error) {
         console.error('[profile] Error calculating streak:', error);
         return 0;
+    }
+}
+
+/**
+ * Specific pronoun roles win over Ask. No role -> null (name line shows username only).
+ * Display uses the role name as written, except Ask -> "ask".
+ */
+function getPronounDisplay(member) {
+    if (!member?.roles?.cache) return null;
+
+    const specificRole = member.roles.cache.find(role => SPECIFIC_PRONOUN_ROLE_IDS.has(role.id));
+    if (specificRole) return specificRole.name;
+
+    if (member.roles.cache.has(ASK_PRONOUN_ROLE_ID)) return 'ask';
+
+    return null;
+}
+
+/**
+ * Points needed to reach the score of the member currently one rank above.
+ * Rank #1 has no next target.
+ */
+async function getProgressToNextRank(guildId, ranking) {
+    if (!ranking?.rank || ranking.rank <= 1) {
+        return { pointsRemaining: null, nextRank: null };
+    }
+
+    const nextRank = ranking.rank - 1;
+    // Rankings are 0-indexed via offset; person at rank N is at offset N-1
+    const offset = Math.max(0, nextRank - 1);
+
+    try {
+        const page = await getGuildRankings(guildId, 'all', offset);
+        const above = page?.rankings?.find(entry => Number(entry.rank) === nextRank)
+            || page?.rankings?.[0];
+
+        if (!above || above.score == null) {
+            return { pointsRemaining: null, nextRank };
+        }
+
+        const gap = Number(above.score) - Number(ranking.score || 0);
+        // Need at least 1 pt to pull ahead when tied or somehow ahead of snapshot
+        const pointsRemaining = gap > 0 ? gap : 1;
+        return { pointsRemaining, nextRank };
+    } catch (error) {
+        console.error('[profile] Error fetching next-rank progress:', error);
+        return { pointsRemaining: null, nextRank };
     }
 }
 
@@ -145,9 +200,10 @@ module.exports = {
                 });
             }
 
-            const [vcHours, vcStreak] = await Promise.all([
+            const [vcHours, vcStreak, progress] = await Promise.all([
                 getVoiceHours(guildId, userId),
                 getVCStreak(guildId, userId),
+                getProgressToNextRank(guildId, ranking),
             ]);
 
             const displayName =
@@ -162,15 +218,20 @@ module.exports = {
                 tatsuProfile.avatar_url
             );
 
+            const title = (tatsuProfile.title || '').trim();
+
             const buffer = await buildProfileCard({
                 avatarUrl,
                 username: displayName,
-                title: tatsuProfile.title || tatsuProfile.info_box || 'No title set',
+                pronounDisplay: getPronounDisplay(member),
+                title,
                 rank: ranking?.rank ?? null,
+                pointsRemaining: progress.pointsRemaining,
+                nextRank: progress.nextRank,
                 score: ranking?.score ?? 0,
-                reputation: tatsuProfile.reputation ?? 0,
                 vcHours,
                 vcStreak,
+                joinedAt: member?.joinedAt ?? null,
             });
 
             const attachment = new AttachmentBuilder(buffer, {

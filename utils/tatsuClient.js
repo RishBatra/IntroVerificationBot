@@ -38,7 +38,12 @@ async function getMemberRanking(guildId, userId, period = 'all') {
     return tatsuFetch(`/guilds/${guildId}/rankings/members/${userId}/${period}`);
 }
 
+async function getGuildRankings(guildId, period = 'all', offset = 0) {
+    return tatsuFetch(`/guilds/${guildId}/rankings/${period}?offset=${offset}`);
+}
+
 module.exports = {
     getUserProfile,
     getMemberRanking,
+    getGuildRankings,
 };
