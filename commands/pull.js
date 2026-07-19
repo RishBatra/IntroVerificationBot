@@ -28,7 +28,7 @@ module.exports = {
         const count = interaction.options.getInteger('count') || 1;
         const pulled = [];
         for (let i = 0; i < count; i++) {
-            const member = await queueManager.pullNext(interaction.client, queue);
+            const member = await queueManager.pullNext(interaction.client, queue, interaction.member);
             if (!member) break;
             pulled.push(member);
         }
@@ -37,6 +37,8 @@ module.exports = {
             return queueManager.embedReply(interaction, `**${queue.name}** is empty.`);
         }
 
-        return interaction.reply(queueManager.buildPullAnnouncement(queue, pulled.map(m => m.userId)));
+        await interaction.reply(queueManager.buildPullAnnouncement(queue, pulled.map(m => m.userId)));
+        // Re-post the display so it lands below the announcement with fresh state
+        await queueManager.repostDisplay(interaction.client, queue);
     },
 };

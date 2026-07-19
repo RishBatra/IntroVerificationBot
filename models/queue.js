@@ -16,6 +16,9 @@ const queueSchema = new mongoose.Schema({
     pullMessage: { type: String, default: null },
     // Last member pulled (shown as "Now up" on the display)
     lastPulledUserId: { type: String, default: null },
+    // Who pressed pull last (shown in the display footer to deter abuse)
+    lastPulledByName: { type: String, default: null },
+    lastPulledByAvatar: { type: String, default: null },
     locked: { type: Boolean, default: false },
     createdBy: { type: String, required: true },
     createdAt: { type: Date, default: Date.now }

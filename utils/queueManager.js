@@ -91,7 +91,11 @@ async function buildDisplay(queue) {
     const footerParts = [`${members.length}${queue.size ? `/${queue.size}` : ''} in queue`];
     if (queue.rotation) footerParts.push('Rotation on: singers rejoin at the back after their turn');
     if (queue.locked) footerParts.push('🔒 Locked');
-    embed.setFooter({ text: footerParts.join(' • ') });
+    if (queue.lastPulledByName) footerParts.push(`Last pull by ${queue.lastPulledByName}`);
+    embed.setFooter({
+        text: footerParts.join(' • '),
+        iconURL: queue.lastPulledByAvatar || undefined,
+    });
 
     if (queue.lastPulledUserId) {
         embed.addFields({ name: 'Now up', value: `<@${queue.lastPulledUserId}>` });
@@ -271,8 +275,9 @@ async function handleStickyDisplay(message) {
 }
 
 // Pulls the next member. In rotation mode (karaoke) they rejoin at the back.
-// Returns the pulled member doc or null if the queue is empty.
-async function pullNext(client, queue) {
+// `puller` is the member who triggered the pull, recorded on the display
+// footer to deter abuse. Callers should repost/refresh the display after.
+async function pullNext(client, queue, puller) {
     const next = await QueueMember.findOne({ queueId: queue._id }).sort({ priority: -1, joinedAt: 1 });
     if (!next) return null;
 
@@ -285,9 +290,24 @@ async function pullNext(client, queue) {
     }
 
     queue.lastPulledUserId = next.userId;
+    if (puller) {
+        queue.lastPulledByName = puller.displayName ?? puller.user?.username ?? null;
+        queue.lastPulledByAvatar = puller.displayAvatarURL?.() ?? null;
+    }
     await queue.save();
-    scheduleDisplayRefresh(client, queue._id);
     return next;
+}
+
+// Re-posts the display at the bottom of its channel (delete + send),
+// used after pulls so the sticky display comes back down with fresh state.
+async function repostDisplay(client, queue) {
+    if (!queue.displayChannelId) return;
+    try {
+        const channel = await client.channels.fetch(queue.displayChannelId);
+        await postDisplay(queue, channel);
+    } catch (error) {
+        console.error(`Error reposting queue display for "${queue.name}":`, error);
+    }
 }
 
 // Builds the public pull announcement. Mentions go in `content` (mentions
@@ -331,5 +351,6 @@ module.exports = {
     joinQueue,
     leaveQueue,
     pullNext,
+    repostDisplay,
     buildPullAnnouncement,
 };

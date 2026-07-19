@@ -29,12 +29,14 @@ async function handleQueueButton(interaction) {
             return queueManager.embedReply(interaction, hint, { color: 'error' });
         }
 
-        const member = await queueManager.pullNext(interaction.client, queue);
+        const member = await queueManager.pullNext(interaction.client, queue, interaction.member);
         if (!member) {
             return queueManager.embedReply(interaction, `**${queue.name}** is empty.`);
         }
 
-        return interaction.reply(queueManager.buildPullAnnouncement(queue, [member.userId]));
+        await interaction.reply(queueManager.buildPullAnnouncement(queue, [member.userId]));
+        // Re-post the display so it lands below the announcement with fresh state
+        await queueManager.repostDisplay(interaction.client, queue);
     }
 }
 

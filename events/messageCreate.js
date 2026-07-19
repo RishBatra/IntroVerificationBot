@@ -26,6 +26,17 @@ module.exports = {
     async execute(message) {
         // console.log(`Received message: "${message.content}" in channel type: ${message.channel.type}`);
 
+        // Keep queue displays stuck to the bottom. Runs before the bot
+        // early-return so other bots' messages also push the display down;
+        // our own messages are skipped to avoid re-post loops.
+        if (message.guild && message.author.id !== message.client.user.id) {
+            try {
+                await handleStickyDisplay(message);
+            } catch (error) {
+                console.error('Error handling sticky queue display:', error);
+            }
+        }
+
         // Ignore bot messages, except for ticket closure notifications
         if (message.author.bot) {
             if (message.content.toLowerCase().includes('ticket closed')) {
@@ -218,13 +229,6 @@ module.exports = {
                 }
             } catch (error) {
                 console.error('Error handling sticky message:', error);
-            }
-
-            // Keep queue displays stuck to the bottom of their channel
-            try {
-                await handleStickyDisplay(message);
-            } catch (error) {
-                console.error('Error handling sticky queue display:', error);
             }
 
             // Add any other guild-specific message handling here
