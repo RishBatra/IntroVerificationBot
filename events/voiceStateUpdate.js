@@ -1,6 +1,7 @@
 const VoiceSession = require('../models/voiceSession');
 const VideoEvent = require('../models/videocallevent');
 const Whitelist = require('../models/whitelist');
+const { handleVoiceLeave } = require('../utils/queueManager');
 
 // Constants
 const AFK_CHANNEL_ID = '693034620618539068';
@@ -405,7 +406,19 @@ module.exports = {
             await handleVoiceTextChannels(oldState, newState);
             
             // ========================================
-            // SECTION 3: VC ACTIVITY TRACKING
+            // SECTION 3: QUEUE AUTO-REMOVAL
+            // ========================================
+            // Leaving a queue's linked voice channel removes you from that queue
+            if (oldChannel && oldChannel.id !== newChannel?.id) {
+                try {
+                    await handleVoiceLeave(newState.client, guildId, userId, oldChannel.id);
+                } catch (error) {
+                    console.error('[Queue] Error removing member on voice leave:', error);
+                }
+            }
+
+            // ========================================
+            // SECTION 4: VC ACTIVITY TRACKING
             // ========================================
             
             // User left voice entirely

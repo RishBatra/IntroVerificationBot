@@ -96,6 +96,10 @@ async function buildDisplay(queue) {
     if (queue.lastPulledUserId) {
         embed.addFields({ name: 'Now up', value: `<@${queue.lastPulledUserId}>` });
     }
+    const nextUp = members[0];
+    if (nextUp && nextUp.userId !== queue.lastPulledUserId) {
+        embed.addFields({ name: 'Next up', value: `<@${nextUp.userId}>` });
+    }
     if (queue.voiceChannelId) {
         embed.addFields({ name: 'Voice channel', value: `🔊 <#${queue.voiceChannelId}>` });
     }
@@ -216,6 +220,30 @@ async function leaveQueue(client, queue, userId) {
     return { ok: true, message: `You left **${queue.name}**.` };
 }
 
+// Called from voiceStateUpdate: when a user leaves a queue's linked voice
+// channel, drop them from that queue (and clear "Now up" if it was them).
+async function handleVoiceLeave(client, guildId, userId, channelId) {
+    const queues = await Queue.find({ guildId, voiceChannelId: channelId });
+
+    for (const queue of queues) {
+        let changed = false;
+
+        const result = await QueueMember.deleteOne({ queueId: queue._id, userId });
+        if (result.deletedCount > 0) changed = true;
+
+        if (queue.lastPulledUserId === userId) {
+            queue.lastPulledUserId = null;
+            await queue.save();
+            changed = true;
+        }
+
+        if (changed) {
+            console.log(`[Queue] Removed ${userId} from "${queue.name}" (left voice channel)`);
+            scheduleDisplayRefresh(client, queue._id);
+        }
+    }
+}
+
 // Sticky behavior: when someone chats in a channel that has a live queue
 // display, re-post the display at the bottom. Throttled per channel so
 // busy chat doesn't cause a delete/send storm.
@@ -299,6 +327,7 @@ module.exports = {
     refreshDisplay,
     postDisplay,
     handleStickyDisplay,
+    handleVoiceLeave,
     joinQueue,
     leaveQueue,
     pullNext,
