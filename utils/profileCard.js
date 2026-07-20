@@ -1,5 +1,6 @@
 const path = require('path');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
+const { getFlag } = require('./prideFlags');
 
 const BACKGROUND_PATH = path.join(__dirname, '../assets/profile-bg.png');
 let backgroundImagePromise = null;
@@ -17,6 +18,40 @@ function drawCover(ctx, image, width, height) {
     const drawW = image.width * scale;
     const drawH = image.height * scale;
     ctx.drawImage(image, (width - drawW) / 2, (height - drawH) / 2, drawW, drawH);
+}
+
+// Diagonal ribbon of flag stripes over a dark base, echoing the default artwork
+function drawFlagBackground(ctx, flag, width, height) {
+    ctx.fillStyle = '#0b0b16';
+    ctx.fillRect(0, 0, width, height);
+
+    const weights = flag.weights || flag.colors.map(() => 1);
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    const bandHeight = 230;
+    const angle = -0.18; // ~ -10°
+
+    ctx.save();
+    ctx.translate(width / 2, height / 2);
+    ctx.rotate(angle);
+
+    const spanW = width * 1.6;
+    let y = -bandHeight / 2;
+    flag.colors.forEach((color, i) => {
+        const stripeH = (weights[i] / totalWeight) * bandHeight;
+        ctx.fillStyle = color;
+        ctx.fillRect(-spanW / 2, y, spanW, stripeH + 1);
+        y += stripeH;
+    });
+
+    if (flag.special === 'intersex') {
+        ctx.strokeStyle = '#7902AA';
+        ctx.lineWidth = 22;
+        ctx.beginPath();
+        ctx.arc(width * 0.22, 0, 62, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    ctx.restore();
 }
 
 function roundRect(ctx, x, y, width, height, radius) {
@@ -91,15 +126,25 @@ async function buildProfileCard({
     vcHours,
     vcStreak,
     joinedAt,
+    flagKey,
 }) {
     const width = 900;
     const height = 300;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
-    // Background: server ribbon artwork, falling back to a plain gradient
-    const backgroundImage = await getBackgroundImage();
-    if (backgroundImage) {
+    // Background priority: user's chosen flag > server ribbon artwork > gradient
+    const flag = flagKey ? getFlag(flagKey) : null;
+    const backgroundImage = flag ? null : await getBackgroundImage();
+    if (flag) {
+        drawFlagBackground(ctx, flag, width, height);
+        const scrim = ctx.createLinearGradient(0, 0, width, 0);
+        scrim.addColorStop(0, 'rgba(8, 8, 18, 0.62)');
+        scrim.addColorStop(0.55, 'rgba(8, 8, 18, 0.50)');
+        scrim.addColorStop(1, 'rgba(8, 8, 18, 0.32)');
+        ctx.fillStyle = scrim;
+        ctx.fillRect(0, 0, width, height);
+    } else if (backgroundImage) {
         drawCover(ctx, backgroundImage, width, height);
         // Dark scrim so text stays readable — heavier on the text-dense left,
         // lighter on the right so the ribbon colours show through

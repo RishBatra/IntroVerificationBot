@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const VoiceSession = require('../models/voiceSession');
+const CardPreference = require('../models/cardPreference');
 const { getUserProfile, getMemberRanking, getGuildRankings } = require('../utils/tatsuClient');
 const { buildProfileCard } = require('../utils/profileCard');
 
@@ -207,10 +208,11 @@ module.exports = {
                 });
             }
 
-            const [vcHours, vcStreak, progress] = await Promise.all([
+            const [vcHours, vcStreak, progress, cardPreference] = await Promise.all([
                 getVoiceHours(guildId, userId),
                 getVCStreak(guildId, userId),
                 getProgressToNextRank(guildId, ranking),
+                CardPreference.findOne({ guildId, userId }).lean().catch(() => null),
             ]);
 
             const displayName =
@@ -239,6 +241,7 @@ module.exports = {
                 vcHours,
                 vcStreak,
                 joinedAt: member?.joinedAt ?? null,
+                flagKey: cardPreference?.flag ?? null,
             });
 
             const attachment = new AttachmentBuilder(buffer, {
