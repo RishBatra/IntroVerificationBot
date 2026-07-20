@@ -5,6 +5,8 @@ class VoiceTextChannelManager {
     this.client = client;
     this.voiceTextChannels = new Collection();
     this.channelCooldowns = new Collection();
+    // Tracks in-flight channel creations so concurrent joins share one create call
+    this.pendingCreations = new Map();
     this.excludedChannels = [
       '693018400259047444',
       '693034620618539068',
@@ -16,6 +18,12 @@ class VoiceTextChannelManager {
     // Cleanup interval for stale channels (every 6 hours)
     setInterval(() => this.cleanupStaleChannels(), 6 * 60 * 60 * 1000);
     console.log('[VoiceTextChannelManager] Initialized.');
+  }
+
+  // Discord normalizes text channel names to lowercase with dashes instead of
+  // spaces, so we must apply the same normalization when searching the cache.
+  getTextChannelName(voiceChannel) {
+    return `${voiceChannel.name}-text`.toLowerCase().replace(/\s+/g, '-');
   }
 
   async getOrCreateTextChannel(voiceChannel) {
@@ -37,11 +45,21 @@ class VoiceTextChannelManager {
         return null;
       }
 
+      // If a creation is already in flight for this voice channel, wait for it
+      // instead of creating a duplicate.
+      const pending = this.pendingCreations.get(voiceChannel.id);
+      if (pending) {
+        console.log(`[VoiceTextChannelManager] Creation already in progress for voice channel ${voiceChannel.id}, awaiting it.`);
+        return await pending;
+      }
+
       // Check for existing text channel in cache or find it
+      const expectedName = this.getTextChannelName(voiceChannel);
       const existingChannel = this.voiceTextChannels.get(voiceChannel.id) || 
         voiceChannel.guild.channels.cache.find(
-          channel => channel.name === `${voiceChannel.name}-text` && 
-          channel.parent === voiceChannel.parent
+          channel => channel.type === ChannelType.GuildText &&
+          channel.name === expectedName && 
+          channel.parentId === voiceChannel.parentId
         );
 
       if (existingChannel) {
@@ -50,10 +68,11 @@ class VoiceTextChannelManager {
         return existingChannel;
       }
 
-      // Create new text channel
+      // Create new text channel. The promise is registered synchronously so
+      // concurrent calls for the same voice channel share this creation.
       console.log(`[VoiceTextChannelManager] Creating new text channel for ${voiceChannel.name}`);
-      const newChannel = await voiceChannel.guild.channels.create({
-        name: `${voiceChannel.name}-text`,
+      const creation = voiceChannel.guild.channels.create({
+        name: expectedName,
         type: ChannelType.GuildText,
         parent: voiceChannel.parent,
         permissionOverwrites: [
@@ -71,9 +90,15 @@ class VoiceTextChannelManager {
           },
         ],
       });
+      this.pendingCreations.set(voiceChannel.id, creation);
 
-      this.voiceTextChannels.set(voiceChannel.id, newChannel);
-      return newChannel;
+      try {
+        const newChannel = await creation;
+        this.voiceTextChannels.set(voiceChannel.id, newChannel);
+        return newChannel;
+      } finally {
+        this.pendingCreations.delete(voiceChannel.id);
+      }
 
     } catch (error) {
       console.error(`[VoiceTextChannelManager] Error: ${error.message}`);
